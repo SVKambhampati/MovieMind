@@ -13,10 +13,18 @@ load_dotenv()
 from models import db
 from auth import auth_bp
 from profile import profile_bp
-from preprocessing import preprocess
-from recommender import HybridRecommender
 import tmdb
 import omdb
+
+# ML stack is optional — not available on Vercel (not needed: TMDB handles recs)
+try:
+    from preprocessing import preprocess
+    from recommender import HybridRecommender
+    HAS_ML = True
+except ImportError:
+    HAS_ML = False
+    logger_pre = logging.getLogger(__name__)
+    logger_pre.info('ML stack not available — running in TMDB-only mode')
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,12 +62,14 @@ with app.app_context():
 # Global state
 # ---------------------------------------------------------------------------
 _data: dict | None = None
-_recommender: HybridRecommender | None = None
+_recommender = None
 _rec_cache: dict[str, list] = {}
 
 
 def get_data():
     global _data
+    if not HAS_ML:
+        return None
     if _data is None:
         t0 = time.time()
         _data = preprocess()
@@ -69,12 +79,14 @@ def get_data():
 
 def get_recommender():
     global _recommender
+    if not HAS_ML:
+        return None
     if _recommender is None:
         _recommender = HybridRecommender(get_data())
     return _recommender
 
 
-if not os.environ.get('VERCEL'):
+if HAS_ML and not os.environ.get('VERCEL'):
     threading.Thread(target=get_recommender, daemon=True).start()
 
 # ---------------------------------------------------------------------------
@@ -256,6 +268,8 @@ def _cold_start_response(page: int, per_page: int) -> object:
 def _resolve_liked(liked: list) -> tuple[list[int], dict[int, float]]:
     """Map TMDB ids from the client back to internal dataset IDs."""
     data = get_data()
+    if data is None:
+        return [], {}
     movies_df = data['movies']
     liked_ids, liked_ratings = [], {}
 
@@ -289,6 +303,9 @@ def _resolve_liked(liked: list) -> tuple[list[int], dict[int, float]]:
 def rec_trending():
     n = int(request.args.get('n', 10))
     rec = get_recommender()
+    if rec is None:
+        movies = tmdb.trending('week')[:n]
+        return jsonify(movies)
     movies = rec.get_trending(n)
 
     def _enrich(m):
@@ -305,6 +322,9 @@ def rec_trending():
 def rec_top_rated():
     n = int(request.args.get('n', 10))
     rec = get_recommender()
+    if rec is None:
+        movies, _ = tmdb.top_rated()
+        return jsonify(movies[:n])
     movies = rec.get_top_rated(n)
 
     def _enrich(m):
