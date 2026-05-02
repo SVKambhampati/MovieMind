@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MovieMind</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🎬</span>
+        <span class="logo-text">Movie<span>Mind</span></span>
+      </div>
+      <nav class="main-nav">
+        <button class="nav-tab active" data-view="recommend">For You</button>
+        <button class="nav-tab" data-view="browse">Browse</button>
+      </nav>
+      <div class="header-auth-area">
+        <button id="headerAuthBtn" class="header-auth-btn">Sign In</button>
+        <div id="headerUserChip" class="header-user-chip" style="display:none">
+          <div id="headerAvatar" class="header-avatar"></div>
+          <span id="headerUsername" class="header-username"></span>
+          <button id="logoutBtn" class="header-logout-btn" title="Sign out">↪</button>
+        </div>
+      </div>
+      <p class="tagline">Your personal film oracle</p>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════
+       VIEW: RECOMMENDATIONS
+  ══════════════════════════════════════ -->
+  <div id="viewRecommend" class="view active">
+    <main class="main">
+
+      <!-- Search panel -->
+      <section class="panel search-panel" id="searchPanel">
+        <h2 class="panel-title">What movies do you love?</h2>
+        <p class="panel-sub">Search and add movies you enjoy. Rate them for better results.</p>
+
+        <div class="search-wrapper">
+          <input id="searchInput" class="search-input" type="text"
+            placeholder="Search any movie…" autocomplete="off" spellcheck="false" />
+          <div class="search-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+          </div>
+          <div id="suggestions" class="suggestions" role="listbox"></div>
+        </div>
+
+        <div id="selectedMovies" class="selected-movies">
+          <p class="empty-hint" id="emptyHint">Add at least one movie to get recommendations.</p>
+        </div>
+
+        <button id="recommendBtn" class="recommend-btn" disabled>
+          <span>Get Recommendations</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </section>
+
+      <!-- Results panel -->
+      <section class="panel results-panel" id="resultsPanel" style="display:none">
+        <div class="results-header">
+          <div>
+            <h2 class="panel-title">Your Recommendations</h2>
+            <p class="panel-sub" id="resultsSubtitle">Based on your taste</p>
+          </div>
+          <button class="back-btn" id="backBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Adjust
+          </button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="forYou">For You</button>
+          <button class="tab" data-tab="trending">Trending</button>
+          <button class="tab" data-tab="topRated">Top Rated</button>
+        </div>
+
+        <div id="resultsGrid" class="results-grid"></div>
+        <div id="loadMoreWrapper" style="display:none">
+          <button id="loadMoreBtn" class="load-more-btn">Load more</button>
+        </div>
+        <div id="loadingState" class="loading-state" style="display:none">
+          <div class="spinner"></div><p>Thinking…</p>
+        </div>
+      </section>
+
+      <!-- Discovery rows -->
+      <section id="discoverySection" class="discovery-section">
+        <div class="discovery-row">
+          <h3 class="discovery-title">Trending Now</h3>
+          <div id="trendingRow" class="scroll-row"></div>
+        </div>
+        <div class="discovery-row">
+          <h3 class="discovery-title">All-Time Best</h3>
+          <div id="topRatedRow" class="scroll-row"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       VIEW: BROWSE / DISCOVER
+  ══════════════════════════════════════ -->
+  <div id="viewBrowse" class="view" style="display:none">
+    <main class="main browse-main">
+
+      <!-- Browse search -->
+      <div class="browse-hero">
+        <div class="browse-search-wrap">
+          <svg class="browse-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input id="browseSearchInput" class="browse-search-input"
+            type="text" placeholder="Search any movie in TMDB…"
+            autocomplete="off" spellcheck="false" />
+          <button id="browseSearchClear" class="browse-search-clear" style="display:none">✕</button>
+        </div>
+      </div>
+
+      <!-- Genre pills -->
+      <div class="genre-pills-wrap">
+        <div id="genrePills" class="genre-pills"></div>
+      </div>
+
+      <!-- Home rows (shown when no search/genre active) -->
+      <div id="browseHome">
+        <div class="browse-row" id="bRowTrending">
+          <div class="browse-row-header">
+            <h3 class="browse-row-title">Trending This Week</h3>
+          </div>
+          <div class="browse-scroll-row" id="bTrendingCards"></div>
+        </div>
+        <div class="browse-row" id="bRowNowPlaying">
+          <div class="browse-row-header">
+            <h3 class="browse-row-title">Now Playing</h3>
+          </div>
+          <div class="browse-scroll-row" id="bNowPlayingCards"></div>
+        </div>
+        <div class="browse-row" id="bRowPopular">
+          <div class="browse-row-header">
+            <h3 class="browse-row-title">Popular</h3>
+          </div>
+          <div class="browse-scroll-row" id="bPopularCards"></div>
+        </div>
+        <div class="browse-row" id="bRowTopRated">
+          <div class="browse-row-header">
+            <h3 class="browse-row-title">Top Rated</h3>
+          </div>
+          <div class="browse-scroll-row" id="bTopRatedCards"></div>
+        </div>
+      </div>
+
+      <!-- Grid (shown for search / genre filter) -->
+      <div id="browseGrid" style="display:none">
+        <div class="browse-grid-header">
+          <h3 id="browseGridTitle" class="browse-grid-title"></h3>
+          <button id="browseGridClear" class="browse-grid-back">← Back to Browse</button>
+        </div>
+        <div id="browseGridCards" class="results-grid browse-results-grid"></div>
+        <div id="browseLoadMoreWrap" style="display:none">
+          <button id="browseLoadMoreBtn" class="load-more-btn">Load more</button>
+        </div>
+      </div>
+
+      <div id="browseLoading" class="loading-state" style="display:none">
+        <div class="spinner"></div><p>Loading…</p>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       VIEW: PROFILE
+  ══════════════════════════════════════ -->
+  <div id="viewProfile" class="view" style="display:none"></div>
+
+  <!-- ── Auth modal ── -->
+  <div id="authModal" class="modal" role="dialog" aria-modal="true" style="display:none">
+    <div class="modal-backdrop" id="authBackdrop"></div>
+    <div class="modal-card auth-modal-card">
+      <button class="modal-close" id="authClose" aria-label="Close">✕</button>
+      <div class="auth-modal-body">
+        <div class="auth-modal-title">MovieMind</div>
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="authTabSignIn">Sign In</button>
+          <button class="auth-tab" id="authTabRegister">Create Account</button>
+        </div>
+
+        <!-- Sign in form -->
+        <form id="formSignIn" class="auth-form" novalidate>
+          <div class="auth-field">
+            <label class="auth-label" for="signInEmail">Email</label>
+            <input class="auth-input" id="signInEmail" type="email" placeholder="you@example.com" required autocomplete="email" />
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="signInPassword">Password</label>
+            <input class="auth-input" id="signInPassword" type="password" placeholder="••••••••" required autocomplete="current-password" />
+          </div>
+          <p class="auth-error" id="signInError"></p>
+          <button class="auth-submit-btn" id="signInSubmit" type="submit">Sign In</button>
+        </form>
+
+        <!-- Register form -->
+        <form id="formRegister" class="auth-form" style="display:none" novalidate>
+          <div class="auth-field">
+            <label class="auth-label" for="regUsername">Username</label>
+            <input class="auth-input" id="regUsername" type="text" placeholder="cinephile42" required autocomplete="username" />
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="regEmail">Email</label>
+            <input class="auth-input" id="regEmail" type="email" placeholder="you@example.com" required autocomplete="email" />
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="regPassword">Password</label>
+            <input class="auth-input" id="regPassword" type="password" placeholder="Min. 6 characters" required autocomplete="new-password" />
+          </div>
+          <p class="auth-error" id="regError"></p>
+          <button class="auth-submit-btn" id="regSubmit" type="submit">Create Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Movie detail modal ── -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" style="display:none">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="browse.js"></script>
+  <script src="auth.js"></script>
+  <script src="profile.js"></script>
+</body>
+</html>

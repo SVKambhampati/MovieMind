@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Environment & secrets
+.env
+
+# Database
+backend/instance/
+*.db
+*.sqlite3
+
+# Cache & data
+backend/cache/
+data/*.csv
+data/*.pkl
+
+# Claude Code internals
+.claude/
+
+# OS
+.DS_Store
+node_modules/
+dist/
