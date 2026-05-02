@@ -31,12 +31,14 @@ app = Flask(
     instance_relative_config=True,
 )
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'moviemind-dev-secret-change-in-prod')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'moviemind.db')
+
+# Vercel's filesystem is read-only except /tmp; use /tmp for SQLite there
+_db_dir = '/tmp' if os.environ.get('VERCEL') else app.instance_path
+os.makedirs(_db_dir, exist_ok=True)
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_dir}/moviemind.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-
-os.makedirs(app.instance_path, exist_ok=True)
 
 db.init_app(app)
 
@@ -72,7 +74,8 @@ def get_recommender():
     return _recommender
 
 
-threading.Thread(target=get_recommender, daemon=True).start()
+if not os.environ.get('VERCEL'):
+    threading.Thread(target=get_recommender, daemon=True).start()
 
 # ---------------------------------------------------------------------------
 # Static
