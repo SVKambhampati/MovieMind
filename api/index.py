@@ -1,7 +1,11 @@
 import sys
 import os
 
-# Add backend to path so all relative imports work
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+# Resolve absolute path to backend/ so imports work regardless of working dir
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_backend = os.path.join(_root, 'backend')
 
-from app import app  # noqa: F401
+if _backend not in sys.path:
+    sys.path.insert(0, _backend)
+
+from app import app  # noqa: F401  — Flask app from backend/app.py
