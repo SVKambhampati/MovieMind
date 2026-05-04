@@ -458,7 +458,7 @@ const browse = (() => {
       if (res.ok && modal.style.display !== 'none') {
         const detail = await res.json();
         renderBrowseModalContent(detail, true);
-        if (typeof loadSimilarMovies === 'function') loadSimilarMovies(detail.tmdb_id || detail.id);
+        if (typeof loadSimilarMovies === 'function') loadSimilarMovies(detail);
       }
     } catch {}
   }

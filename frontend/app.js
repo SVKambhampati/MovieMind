@@ -666,14 +666,30 @@ function wireCollectionLink() {
 }
 
 // ── Load similar movies into modal ────────────────────────────────────────
-async function loadSimilarMovies(tmdbId) {
+async function loadSimilarMovies(detail) {
   const container = $('modalSimilar');
   if (!container) return;
+  const tmdbId = detail.tmdb_id || detail.id;
+  if (!tmdbId) return;
   try {
-    const res = await fetch(`${API}/browse/movie/${tmdbId}/similar`);
+    const res = await fetch(`${API}/recommend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        liked: [{
+          id:                tmdbId,
+          tmdb_id:           tmdbId,
+          title:             detail.title || '',
+          original_language: detail.original_language || 'en',
+          genre_ids:         detail.genre_ids || (detail.genres || []).map(g => g.id || g),
+        }],
+        page:     1,
+        per_page: 12,
+      }),
+    });
     if (!res.ok || !container.isConnected) return;
     const data = await res.json();
-    const movies = (data.results || []).slice(0, 12);
+    const movies = (data.recommendations || []).slice(0, 12);
     if (!movies.length || !container.isConnected) return;
     container.innerHTML = `
       <div class="modal-similar">
@@ -838,7 +854,7 @@ async function openModal(m) {
     if (res.ok && modal.style.display !== 'none') {
       const detail = await res.json();
       renderModal(detail, state.liked.find(l => l.id === m.id));
-      loadSimilarMovies(detail.tmdb_id || detail.id);
+      loadSimilarMovies(detail);
     }
   } catch { /* keep basic modal */ }
 }
