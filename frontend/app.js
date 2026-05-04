@@ -42,7 +42,20 @@ const siteHeader = $('siteHeader');
 window.addEventListener('scroll', () => {
   siteHeader.classList.toggle('scrolled', window.scrollY > 40);
 }, { passive: true });
-// Start transparent (no class) since hero is at top
+
+// ── Scroll reveal ─────────────────────────────────────────────────────────
+const revealObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      revealObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.06 });
+
+function observeSections() {
+  document.querySelectorAll('.discovery-row, .browse-row').forEach(el => revealObserver.observe(el));
+}
 
 // ── Hero ───────────────────────────────────────────────────────────────────
 let _heroMovies = [];
@@ -79,6 +92,11 @@ function renderHeroSlide(idx, crossfade = false) {
   } else {
     heroBg.style.backgroundImage = newUrl;
   }
+
+  // Animate text change
+  heroMeta.classList.remove('hero-text-change');
+  void heroMeta.offsetWidth; // force reflow
+  heroMeta.classList.add('hero-text-change');
 
   const genres = (m.genres || []).slice(0, 3);
   heroMeta.innerHTML = `
@@ -355,8 +373,17 @@ backBtn.addEventListener('click', () => {
   state.currentTab = 'forYou';
 });
 
+// ── Skeleton loaders ──────────────────────────────────────────────────────
+function showSkeletons(container, count = 8) {
+  container.innerHTML = Array.from({ length: count }, () =>
+    `<div class="card-skeleton"><div class="card-skeleton-poster"></div></div>`
+  ).join('');
+}
+
 // ── Discovery ──────────────────────────────────────────────────────────────
 async function loadDiscovery() {
+  showSkeletons(trendingRow);
+  showSkeletons(topRatedRow);
   try {
     const [tRes, trRes] = await Promise.all([
       fetch(`${API}/top-rated?n=16`),
@@ -367,8 +394,11 @@ async function loadDiscovery() {
 
     if (trending.length) initHero(trending);
 
+    trendingRow.innerHTML = '';
+    topRatedRow.innerHTML = '';
     renderMovieCards(trending, trendingRow, false);
     renderMovieCards(topRated, topRatedRow, false);
+    observeSections();
   } catch {
     // Non-critical
   }
@@ -385,7 +415,7 @@ function renderMovieCards(movies, container, animate) {
 function buildCard(m, delayMs = 0) {
   const card = document.createElement('div');
   card.className = 'movie-card';
-  if (delayMs) card.style.animationDelay = `${delayMs}ms`;
+  card.style.animationDelay = `${delayMs}ms`;
 
   const posterInner = m.poster
     ? `<img class="card-poster" src="${m.poster}" alt="${esc(m.title)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'card-poster-placeholder\\'>🎬</div>'">`
@@ -591,8 +621,12 @@ async function openModal(m) {
 }
 
 function closeModal() {
-  modal.style.display = 'none';
-  document.body.style.overflow = '';
+  modal.classList.add('closing');
+  setTimeout(() => {
+    modal.style.display = 'none';
+    modal.classList.remove('closing');
+    document.body.style.overflow = '';
+  }, 200);
 }
 
 modalClose.addEventListener('click', closeModal);
