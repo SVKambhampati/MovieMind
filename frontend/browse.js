@@ -25,21 +25,31 @@ const browse = (() => {
   const browseLoading      = document.getElementById('browseLoading');
 
   // ── Nav tab switching ──────────────────────────────────────────────────
+  const viewMap = {
+    recommend: document.getElementById('viewRecommend'),
+    browse:    document.getElementById('viewBrowse'),
+    profile:   document.getElementById('viewProfile'),
+  };
+
   document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       const view = tab.dataset.view;
 
-      const vRec     = document.getElementById('viewRecommend');
-      const vBrowse  = document.getElementById('viewBrowse');
-      const vProfile = document.getElementById('viewProfile');
+      // Use class-based switching so CSS `display:none` on .view is respected
+      Object.entries(viewMap).forEach(([key, el]) => {
+        if (!el) return;
+        el.classList.toggle('active', key === view);
+      });
 
-      [vRec, vBrowse, vProfile].forEach(v => v && (v.style.display = 'none'));
+      const target = viewMap[view];
+      if (target) {
+        target.classList.add('view-enter');
+        setTimeout(() => target.classList.remove('view-enter'), 400);
+      }
 
-      if (view === 'recommend') { vRec.style.display = ''; vRec.classList.add('view-enter'); setTimeout(() => vRec.classList.remove('view-enter'), 400); }
-      if (view === 'browse')    { vBrowse.style.display = ''; vBrowse.classList.add('view-enter'); setTimeout(() => vBrowse.classList.remove('view-enter'), 400); if (st.genres.length === 0) init(); }
-      if (view === 'profile')   { vProfile.style.display = ''; vProfile.classList.add('view-enter'); setTimeout(() => vProfile.classList.remove('view-enter'), 400); }
+      if (view === 'browse' && st.genres.length === 0) init();
     });
   });
 
@@ -109,6 +119,7 @@ const browse = (() => {
         if (container) renderScrollRow(movies, container);
       } catch {}
     }));
+    if (typeof observeSections === 'function') observeSections();
   }
 
   function showHome() {
