@@ -103,6 +103,13 @@ const browse = (() => {
   }
 
   // ── Home rows ──────────────────────────────────────────────────────────
+  function showRowSkeletons(container, count = 10) {
+    if (!container) return;
+    container.innerHTML = Array.from({ length: count }, () =>
+      `<div class="card-skeleton"><div class="card-skeleton-poster"></div></div>`
+    ).join('');
+  }
+
   async function loadHomeRows() {
     const rows = [
       { id: 'bTrendingCards',   endpoint: 'browse/trending' },
@@ -110,6 +117,10 @@ const browse = (() => {
       { id: 'bPopularCards',    endpoint: 'browse/popular' },
       { id: 'bTopRatedCards',   endpoint: 'browse/top-rated' },
     ];
+
+    // Show skeletons while fetching
+    rows.forEach(({ id }) => showRowSkeletons(document.getElementById(id)));
+
     await Promise.all(rows.map(async ({ id, endpoint }) => {
       try {
         const res  = await fetch(`${API}/${endpoint}`);
@@ -117,7 +128,10 @@ const browse = (() => {
         const movies = data.results || data;
         const container = document.getElementById(id);
         if (container) renderScrollRow(movies, container);
-      } catch {}
+      } catch {
+        const container = document.getElementById(id);
+        if (container) container.innerHTML = '';
+      }
     }));
     if (typeof observeSections === 'function') observeSections();
   }
@@ -144,6 +158,7 @@ const browse = (() => {
     if (page === 1) browseGridCards.innerHTML = '';
     showGridView(`Results for "${query}"`);
     setLoading(true);
+    if (typeof startProgress === 'function') startProgress();
     try {
       const res  = await fetch(`${API}/browse/search?query=${encodeURIComponent(query)}&page=${page}`);
       const data = await res.json();
@@ -152,7 +167,10 @@ const browse = (() => {
       browseLoadMoreWrap.style.display = page < st.gridTotalPages ? '' : 'none';
     } catch {
       browseGridCards.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:40px;text-align:center">Search failed.</p>`;
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+      if (typeof finishProgress === 'function') finishProgress();
+    }
   }
 
   async function runGenre(id, name, page) {
@@ -161,6 +179,7 @@ const browse = (() => {
     if (page === 1) browseGridCards.innerHTML = '';
     showGridView(name);
     setLoading(true);
+    if (typeof startProgress === 'function') startProgress();
     try {
       const res  = await fetch(`${API}/browse/genre/${id}?page=${page}`);
       const data = await res.json();
@@ -169,7 +188,10 @@ const browse = (() => {
       browseLoadMoreWrap.style.display = page < st.gridTotalPages ? '' : 'none';
     } catch {
       browseGridCards.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:40px;text-align:center">Failed to load.</p>`;
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+      if (typeof finishProgress === 'function') finishProgress();
+    }
   }
 
   browseLoadMoreBtn.addEventListener('click', () => {
@@ -200,6 +222,16 @@ const browse = (() => {
       </div>
     `;
 
+    // Fade-in poster image when loaded
+    const img = card.querySelector('.card-poster');
+    if (img) {
+      if (img.complete && img.naturalWidth) {
+        img.classList.add('img-loaded');
+      } else {
+        img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
+      }
+    }
+
     card.querySelector('.card-hover-add').addEventListener('click', e => {
       e.stopPropagation();
       if (typeof addMovie === 'function') addMovie(m);
@@ -226,13 +258,34 @@ const browse = (() => {
     });
   }
 
+  // ── Modal skeleton ────────────────────────────────────────────────────
+  function renderBrowseModalSkeleton(modalBody) {
+    modalBody.innerHTML = `
+      <div class="modal-skeleton">
+        <div class="modal-skeleton-backdrop"></div>
+        <div class="modal-skeleton-body">
+          <div class="modal-skeleton-poster"></div>
+          <div class="modal-skeleton-lines">
+            <div class="modal-skeleton-line"></div>
+            <div class="modal-skeleton-line"></div>
+            <div class="modal-skeleton-line"></div>
+            <div class="modal-skeleton-line"></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
   // ── Movie detail modal ────────────────────────────────────────────────
   async function openBrowseModal(m) {
-    // Show a quick preview right away, then enrich
     const modal     = document.getElementById('modal');
     const modalBody = document.getElementById('modalBody');
 
-    renderBrowseModalContent(m, false);
+    // If card has enough info show immediately, else show skeleton
+    if (m.poster || m.backdrop) {
+      renderBrowseModalContent(m, false);
+    } else {
+      renderBrowseModalSkeleton(modalBody);
+    }
     modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
 
@@ -345,7 +398,9 @@ const browse = (() => {
   }
 
   async function init() {
+    if (typeof startProgress === 'function') startProgress();
     await Promise.all([loadGenres(), loadHomeRows()]);
+    if (typeof finishProgress === 'function') finishProgress();
   }
 
   return { init };

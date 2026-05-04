@@ -1154,43 +1154,117 @@ body {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ── Responsive ─────────────────────────────────────── */
-@media (max-width: 960px) {
-  .header-inner { padding: 0 20px; gap: 14px; }
+/* ── Tablet ──────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .header-inner { padding: 0 28px; }
   .tagline { display: none; }
 
-  .hero-content { padding: 0 24px 88px; max-width: 100%; }
-  .hero-title { font-size: 2rem; }
-  .hero-overview { display: none; }
-  .hero-dots { right: 24px; }
+  .hero-content { padding: 0 40px 88px; }
+  .hero-title { font-size: clamp(1.9rem, 3.8vw, 3rem); }
 
-  .discovery-title, .scroll-row { padding-left: 24px; padding-right: 24px; }
-  .scroll-row { padding-top: 4px; padding-bottom: 14px; }
-  .results-grid { padding: 0 24px; }
-  .results-header, .tabs { padding-left: 24px; padding-right: 24px; }
-
-  .search-panel { margin: -40px 20px 0; }
+  .discovery-title { padding: 0 40px; }
+  .scroll-row { padding-left: 40px; padding-right: 40px; }
+  .results-grid { padding: 0 40px; }
+  .results-header, .tabs { padding-left: 40px; padding-right: 40px; }
 
   .browse-hero, .genre-pills-wrap, .browse-row-header,
-  .browse-grid-header, .browse-results-grid { padding-left: 24px; padding-right: 24px; }
-  .browse-scroll-row { padding-left: 24px; padding-right: 24px; }
+  .browse-grid-header, .browse-results-grid { padding-left: 40px; padding-right: 40px; }
+  .browse-scroll-row { padding-left: 40px; padding-right: 40px; }
 
-  .profile-header, .profile-filters, .profile-grid { padding-left: 24px; padding-right: 24px; }
-
-  .modal-card { margin: 0; border-radius: 0; min-height: 100dvh; }
-  .modal-poster-row { flex-direction: column; }
-  .modal-poster { width: 110px; }
-  .modal-info { padding-top: 0; }
-  .modal-title { font-size: 22px; }
-  .modal-overview, .modal-cast-section, .modal-gallery, .modal-trailer { padding-left: 20px; padding-right: 20px; }
+  .profile-header, .profile-filters, .profile-grid { padding-left: 40px; padding-right: 40px; }
 }
 
-@media (max-width: 580px) {
-  .hero { max-height: 680px; }
-  .hero-actions { flex-direction: column; }
-  .hero-btn { justify-content: center; }
+/* ── Mobile ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Header */
+  .header-inner { padding: 0 16px; gap: 8px; }
+  .logo-text { font-size: 16px; }
+  .logo-icon { font-size: 16px; }
+  .nav-tab { padding: 5px 11px; font-size: 12px; }
+  .header-auth-btn { padding: 5px 11px; font-size: 12px; }
+  .header-username { display: none; }
+
+  /* Hero */
+  .hero { min-height: 520px; max-height: 640px; }
+  .hero-content { padding: 0 20px 80px; max-width: 100%; }
+  .hero-title { font-size: clamp(1.6rem, 6.5vw, 2.4rem); }
+  .hero-overview { display: none; }
+  .hero-genre-pills { display: none; }
+  .hero-dots { right: 20px; bottom: 28px; }
+  .hero-label { display: none; }
+  .hero-btn { padding: 10px 18px; font-size: 13px; }
+
+  /* Search panel */
+  .search-panel {
+    margin: -36px 16px 0;
+    padding: 22px 20px 20px;
+    border-radius: var(--r16);
+  }
+  .search-panel.no-hero { margin: 72px 16px 0; }
+  .panel-title { font-size: 17px; }
+
+  /* Discovery */
+  .discovery-section { padding: 36px 0 0; }
+  .discovery-title { padding: 0 20px; font-size: 16px; margin-bottom: 12px; }
+  .scroll-row { padding: 4px 20px 16px; gap: 8px; }
   .movie-card { width: 120px; }
-  .results-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
-  .modal-poster-row { padding: 20px; }
+
+  /* Results */
+  .results-grid {
+    padding: 0 16px;
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    gap: 10px;
+  }
+  .results-header { padding: 0 16px 16px; flex-wrap: wrap; gap: 10px; }
+  .tabs { padding: 0 16px 16px; }
+
+  /* Browse */
+  .browse-main { padding: 52px 0 60px; }
+  .browse-hero { padding: 28px 20px 20px; }
+  .genre-pills-wrap { padding: 0 20px 18px; }
+  .browse-row-header { padding: 0 20px; }
+  .browse-scroll-row { padding: 4px 20px 14px; gap: 8px; }
+  .browse-scroll-row .movie-card { width: 120px; }
+  .browse-grid-header { padding: 0 16px 16px; flex-wrap: wrap; gap: 8px; }
+  .browse-results-grid { padding: 0 16px; }
+
+  /* Profile */
+  .profile-header { padding: 32px 20px 24px; flex-wrap: wrap; }
+  .profile-filters { padding: 16px 20px 0; flex-wrap: wrap; }
+  .profile-grid { padding: 16px 16px 60px; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 10px; }
+  .profile-username { font-size: 22px; }
+  .profile-avatar-large { width: 60px; height: 60px; font-size: 22px; }
+
+  /* Modal — full screen sheet */
+  .modal { padding: 0; }
+  .modal-card {
+    margin: 0;
+    border-radius: var(--r20) var(--r20) 0 0;
+    min-height: 92dvh;
+    margin-top: 8dvh;
+  }
+  .modal-backdrop-img { height: 220px; }
+  .modal-poster-row { padding: 16px 20px; margin-top: -60px; gap: 16px; }
+  .modal-poster { width: 96px; }
+  .modal-info { padding-top: 20px; }
+  .modal-title { font-size: 19px; }
+  .modal-overview { padding: 0 20px 18px; font-size: 13px; }
+  .modal-cast-section,
+  .modal-gallery,
+  .modal-trailer { padding-left: 20px; padding-right: 20px; padding-top: 18px; }
+  .modal-poster-row { flex-direction: row; align-items: flex-start; }
+}
+
+/* ── Small mobile ────────────────────────────────── */
+@media (max-width: 430px) {
+  .hero-actions { gap: 8px; }
+  .hero-btn { flex: 1; justify-content: center; padding: 10px 14px; }
+  .main-nav { gap: 1px; }
+  .nav-tab { padding: 5px 9px; }
+  .movie-card { width: 108px; }
+  .scroll-row .movie-card,
+  .browse-scroll-row .movie-card { width: 108px; }
+  .card-skeleton { width: 108px; }
 }
 
 /* ══════════════════════════════════════════════════
@@ -1386,10 +1460,7 @@ body {
   transition-timing-function: var(--ease);
 }
 
-/* ── Poster load fade-in ─────────────────────────── */
-.card-poster {
-  animation: fadeIn 0.4s var(--ease) both;
-}
+/* ── Poster load fade-in — handled by .img-loaded class via JS ── */
 .modal-poster {
   animation: scaleIn 0.45s cubic-bezier(0.16,1,0.3,1) both;
 }
@@ -1397,6 +1468,95 @@ body {
 /* ── Hero bg transition ──────────────────────────── */
 .hero-bg {
   transition: opacity 1.3s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ── Page-level progress bar ─────────────────────── */
+.page-progress {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0%;
+  height: 2px;
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.9) 0%,
+    rgba(255,255,255,0.55) 100%
+  );
+  z-index: 9999;
+  border-radius: 0 2px 2px 0;
+  opacity: 0;
+  pointer-events: none;
+  will-change: width, opacity;
+  /* width transition handled inline by JS for snappy control */
+}
+.page-progress.active { opacity: 1; }
+
+/* ── Browse skeleton rows ────────────────────────── */
+.browse-scroll-row .card-skeleton {
+  width: 140px;
+  flex: none;
+}
+@media (max-width: 768px) {
+  .browse-scroll-row .card-skeleton { width: 120px; }
+}
+@media (max-width: 430px) {
+  .browse-scroll-row .card-skeleton { width: 108px; }
+}
+
+/* ── Modal loading skeleton ──────────────────────── */
+.modal-skeleton {
+  padding: 0 0 32px;
+  animation: fadeIn 0.25s var(--ease) both;
+}
+.modal-skeleton-backdrop {
+  width: 100%; height: 280px;
+  background: linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.modal-skeleton-body {
+  display: flex; gap: 20px;
+  padding: 20px 28px;
+  margin-top: -56px; position: relative; z-index: 2;
+}
+.modal-skeleton-poster {
+  width: 110px; aspect-ratio: 2/3; flex: none;
+  border-radius: var(--r12);
+  background: linear-gradient(90deg, var(--s3) 25%, var(--s4) 50%, var(--s3) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.modal-skeleton-lines { flex: 1; padding-top: 48px; display: flex; flex-direction: column; gap: 9px; }
+.modal-skeleton-line {
+  height: 13px; border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--s3) 25%, var(--s4) 50%, var(--s3) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.modal-skeleton-line:nth-child(1) { width: 65%; height: 22px; }
+.modal-skeleton-line:nth-child(2) { width: 45%; }
+.modal-skeleton-line:nth-child(3) { width: 80%; margin-top: 6px; }
+.modal-skeleton-line:nth-child(4) { width: 70%; }
+
+/* ── Image blur-up / fade-in ─────────────────────── */
+.card-poster {
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+}
+.card-poster.img-loaded { opacity: 1; }
+
+/* Also handles posters that load faster than animation starts */
+@keyframes posterFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Scroll row gradient mask (performance: only when has cards) ── */
+.browse-scroll-row:not(:empty) {
+  -webkit-mask-image: linear-gradient(
+    to right, transparent, #000 52px, #000 calc(100% - 52px), transparent
+  );
+  mask-image: linear-gradient(
+    to right, transparent, #000 52px, #000 calc(100% - 52px), transparent
+  );
 }
 
 /* ── Suggestion items ────────────────────────────── */

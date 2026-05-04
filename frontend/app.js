@@ -289,6 +289,7 @@ async function fetchRecommendations(reset = true) {
     state.recs = [];
   }
 
+  startProgress();
   showLoading(true);
   searchPanel.style.display = 'none';
   heroSection.style.display = 'none';
@@ -321,9 +322,10 @@ async function fetchRecommendations(reset = true) {
     renderMovieCards(data.recommendations || [], resultsGrid, true);
     loadMoreWrapper.style.display = state.currentPage < state.totalPages ? '' : 'none';
   } catch {
-    resultsGrid.innerHTML = `<p style="color:var(--text-dim);grid-column:1/-1;padding:60px;text-align:center">Could not load recommendations.</p>`;
+    resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:60px;text-align:center">Could not load recommendations.</p>`;
   } finally {
     showLoading(false);
+    finishProgress();
   }
 }
 
@@ -346,6 +348,7 @@ document.querySelectorAll('.tab').forEach(tab => {
       return;
     }
 
+    startProgress();
     showLoading(true);
     resultsGrid.innerHTML = '';
     loadMoreWrapper.style.display = 'none';
@@ -356,9 +359,10 @@ document.querySelectorAll('.tab').forEach(tab => {
       const movies = await res.json();
       renderMovieCards(movies, resultsGrid, false);
     } catch {
-      resultsGrid.innerHTML = `<p style="color:var(--text-dim);grid-column:1/-1;padding:40px;text-align:center">Could not load data.</p>`;
+      resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:40px;text-align:center">Could not load data.</p>`;
     } finally {
       showLoading(false);
+      finishProgress();
     }
   });
 });
@@ -382,6 +386,7 @@ function showSkeletons(container, count = 8) {
 
 // ── Discovery ──────────────────────────────────────────────────────────────
 async function loadDiscovery() {
+  startProgress();
   showSkeletons(trendingRow);
   showSkeletons(topRatedRow);
   try {
@@ -400,7 +405,11 @@ async function loadDiscovery() {
     renderMovieCards(topRated, topRatedRow, false);
     observeSections();
   } catch {
-    // Non-critical
+    // Non-critical — skeletons will just stay until refresh
+    trendingRow.innerHTML = '';
+    topRatedRow.innerHTML = '';
+  } finally {
+    finishProgress();
   }
 }
 
@@ -431,6 +440,16 @@ function buildCard(m, delayMs = 0) {
       </div>
     </div>
   `;
+
+  // Fade in poster once loaded
+  const img = card.querySelector('.card-poster');
+  if (img) {
+    if (img.complete && img.naturalWidth) {
+      img.classList.add('img-loaded');
+    } else {
+      img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
+    }
+  }
 
   card.querySelector('.card-hover-add').addEventListener('click', e => {
     e.stopPropagation();
@@ -604,9 +623,30 @@ function renderModal(detail, alreadyAdded) {
   }
 }
 
+function renderModalSkeleton() {
+  modalBody.innerHTML = `
+    <div class="modal-skeleton">
+      <div class="modal-skeleton-backdrop"></div>
+      <div class="modal-skeleton-body">
+        <div class="modal-skeleton-poster"></div>
+        <div class="modal-skeleton-lines">
+          <div class="modal-skeleton-line"></div>
+          <div class="modal-skeleton-line"></div>
+          <div class="modal-skeleton-line"></div>
+          <div class="modal-skeleton-line"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
 async function openModal(m) {
+  // If we have poster/title, show immediately; otherwise show skeleton
   const alreadyAdded = state.liked.find(l => l.id === m.id);
-  renderModal(m, alreadyAdded);
+  if (m.poster || m.backdrop) {
+    renderModal(m, alreadyAdded);
+  } else {
+    renderModalSkeleton();
+  }
   modal.style.display = 'block';
   document.body.style.overflow = 'hidden';
 
@@ -637,6 +677,50 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 function showLoading(show) {
   loadingState.style.display = show ? '' : 'none';
   resultsGrid.style.opacity  = show ? '0.3' : '1';
+}
+
+// ── Page progress bar ──────────────────────────────────────────────────────
+const pageProgress = $('pageProgress');
+let _progressTimer = null;
+let _progressVal   = 0;
+
+function startProgress() {
+  clearTimeout(_progressTimer);
+  _progressVal = 0;
+  pageProgress.style.transition = 'none';
+  pageProgress.style.width = '0%';
+  pageProgress.classList.add('active');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      pageProgress.style.transition = 'width 0.5s cubic-bezier(0.16,1,0.3,1), opacity 0.3s ease';
+      _progressVal = 22;
+      pageProgress.style.width = '22%';
+      _tickProgress();
+    });
+  });
+}
+
+function _tickProgress() {
+  _progressTimer = setTimeout(() => {
+    if (_progressVal < 84) {
+      _progressVal += Math.random() * 14 + 5;
+      _progressVal = Math.min(_progressVal, 84);
+      pageProgress.style.transition = 'width 0.7s cubic-bezier(0.16,1,0.3,1)';
+      pageProgress.style.width = `${_progressVal}%`;
+      _tickProgress();
+    }
+  }, 550);
+}
+
+function finishProgress() {
+  clearTimeout(_progressTimer);
+  pageProgress.style.transition = 'width 0.25s cubic-bezier(0.16,1,0.3,1)';
+  pageProgress.style.width = '100%';
+  setTimeout(() => {
+    pageProgress.style.transition = 'width 0.25s cubic-bezier(0.16,1,0.3,1), opacity 0.35s ease';
+    pageProgress.classList.remove('active');
+    setTimeout(() => { pageProgress.style.width = '0%'; }, 360);
+  }, 260);
 }
 
 function esc(str) {
