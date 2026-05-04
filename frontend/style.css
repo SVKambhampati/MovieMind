@@ -1286,23 +1286,19 @@ body {
 }
 
 /* ── Section reveal on scroll ────────────────────── */
+/* Sections are always visible; cards inside animate individually */
 .discovery-row,
 .browse-row {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  /* Safety fallback: force visible after 1.5s even if observer misfires */
-  animation: sectionFallback 0s 1.5s forwards;
+  transition: opacity 0.4s var(--ease);
 }
-@keyframes sectionFallback {
-  to { opacity: 1; transform: translateY(0); }
+/* Subtle dimming while loading, revealed by .visible */
+.discovery-row:not(.visible),
+.browse-row:not(.visible) {
+  opacity: 0.4;
 }
 .discovery-row.visible,
 .browse-row.visible {
   opacity: 1;
-  transform: translateY(0);
-  animation: none;
 }
 
 /* ── Search panel entrance ───────────────────────── */
