@@ -12,7 +12,7 @@
 <body>
 
   <!-- ── Header ── -->
-  <header class="header">
+  <header class="header" id="siteHeader">
     <div class="header-inner">
       <div class="logo">
         <span class="logo-icon">🎬</span>
@@ -38,6 +38,20 @@
        VIEW: RECOMMENDATIONS
   ══════════════════════════════════════ -->
   <div id="viewRecommend" class="view active">
+
+    <!-- ── Hero ── -->
+    <section class="hero" id="heroSection">
+      <div class="hero-bg" id="heroBg"></div>
+      <div class="hero-bg" id="heroBgPrev" style="opacity:0;transition:opacity 1.4s ease;"></div>
+      <div class="hero-side"></div>
+      <div class="hero-content">
+        <div id="heroMeta">
+          <!-- populated by JS once trending loads -->
+        </div>
+      </div>
+      <div class="hero-dots" id="heroDots"></div>
+    </section>
+
     <main class="main">
 
       <!-- Search panel -->
@@ -119,25 +133,22 @@
   <div id="viewBrowse" class="view" style="display:none">
     <main class="main browse-main">
 
-      <!-- Browse search -->
       <div class="browse-hero">
         <div class="browse-search-wrap">
           <svg class="browse-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
           <input id="browseSearchInput" class="browse-search-input"
-            type="text" placeholder="Search any movie in TMDB…"
+            type="text" placeholder="Search any movie…"
             autocomplete="off" spellcheck="false" />
           <button id="browseSearchClear" class="browse-search-clear" style="display:none">✕</button>
         </div>
       </div>
 
-      <!-- Genre pills -->
       <div class="genre-pills-wrap">
         <div id="genrePills" class="genre-pills"></div>
       </div>
 
-      <!-- Home rows (shown when no search/genre active) -->
       <div id="browseHome">
         <div class="browse-row" id="bRowTrending">
           <div class="browse-row-header">
@@ -165,7 +176,6 @@
         </div>
       </div>
 
-      <!-- Grid (shown for search / genre filter) -->
       <div id="browseGrid" style="display:none">
         <div class="browse-grid-header">
           <h3 id="browseGridTitle" class="browse-grid-title"></h3>
@@ -201,7 +211,6 @@
           <button class="auth-tab" id="authTabRegister">Create Account</button>
         </div>
 
-        <!-- Sign in form -->
         <form id="formSignIn" class="auth-form" novalidate>
           <div class="auth-field">
             <label class="auth-label" for="signInEmail">Email</label>
@@ -215,7 +224,6 @@
           <button class="auth-submit-btn" id="signInSubmit" type="submit">Sign In</button>
         </form>
 
-        <!-- Register form -->
         <form id="formRegister" class="auth-form" style="display:none" novalidate>
           <div class="auth-field">
             <label class="auth-label" for="regUsername">Username</label>

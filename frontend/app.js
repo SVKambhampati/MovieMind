@@ -6,7 +6,7 @@ const API = window.location.hostname === 'localhost' || window.location.hostname
 
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
-  liked: [],          // [{id, title, year, genres, rating?, poster, ...}]
+  liked: [],
   currentPage: 1,
   totalPages: 1,
   currentTab: 'forYou',
@@ -15,26 +15,121 @@ const state = {
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
-const searchInput    = $('searchInput');
-const suggestions    = $('suggestions');
-const selectedMovies = $('selectedMovies');
-const emptyHint      = $('emptyHint');
-const recommendBtn   = $('recommendBtn');
-const searchPanel    = $('searchPanel');
-const resultsPanel   = $('resultsPanel');
-const resultsGrid    = $('resultsGrid');
-const backBtn        = $('backBtn');
-const trendingRow    = $('trendingRow');
-const topRatedRow    = $('topRatedRow');
+const searchInput     = $('searchInput');
+const suggestions     = $('suggestions');
+const selectedMovies  = $('selectedMovies');
+const emptyHint       = $('emptyHint');
+const recommendBtn    = $('recommendBtn');
+const searchPanel     = $('searchPanel');
+const resultsPanel    = $('resultsPanel');
+const resultsGrid     = $('resultsGrid');
+const backBtn         = $('backBtn');
+const trendingRow     = $('trendingRow');
+const topRatedRow     = $('topRatedRow');
 const discoverySection = $('discoverySection');
-const loadMoreBtn    = $('loadMoreBtn');
+const loadMoreBtn     = $('loadMoreBtn');
 const loadMoreWrapper = $('loadMoreWrapper');
-const loadingState   = $('loadingState');
-const modal          = $('modal');
-const modalBody      = $('modalBody');
-const modalBackdrop  = $('modalBackdrop');
-const modalClose     = $('modalClose');
+const loadingState    = $('loadingState');
+const modal           = $('modal');
+const modalBody       = $('modalBody');
+const modalBackdrop   = $('modalBackdrop');
+const modalClose      = $('modalClose');
 const resultsSubtitle = $('resultsSubtitle');
+const heroSection     = $('heroSection');
+
+// ── Header scroll effect ───────────────────────────────────────────────────
+const siteHeader = $('siteHeader');
+window.addEventListener('scroll', () => {
+  siteHeader.classList.toggle('scrolled', window.scrollY > 40);
+}, { passive: true });
+// Start transparent (no class) since hero is at top
+
+// ── Hero ───────────────────────────────────────────────────────────────────
+let _heroMovies = [];
+let _heroIdx    = 0;
+let _heroTimer  = null;
+
+function initHero(movies) {
+  _heroMovies = movies.filter(m => m.backdrop).slice(0, 6);
+  if (!_heroMovies.length) {
+    heroSection.style.display = 'none';
+    return;
+  }
+  renderHeroSlide(0);
+  buildHeroDots();
+  startHeroTimer();
+}
+
+function renderHeroSlide(idx, crossfade = false) {
+  const m = _heroMovies[idx];
+  if (!m) return;
+  _heroIdx = idx;
+
+  const heroBg     = $('heroBg');
+  const heroBgPrev = $('heroBgPrev');
+  const heroMeta   = $('heroMeta');
+
+  // Crossfade backdrop
+  const newUrl = `url(${m.backdrop.replace('w780', 'w1280')})`;
+  if (crossfade && heroBg.style.backgroundImage) {
+    heroBgPrev.style.backgroundImage = heroBg.style.backgroundImage;
+    heroBgPrev.style.opacity = '1';
+    heroBg.style.backgroundImage = newUrl;
+    setTimeout(() => { heroBgPrev.style.opacity = '0'; }, 50);
+  } else {
+    heroBg.style.backgroundImage = newUrl;
+  }
+
+  const genres = (m.genres || []).slice(0, 3);
+  heroMeta.innerHTML = `
+    <div class="hero-label">✦ Featured Film</div>
+    ${genres.length ? `<div class="hero-genre-pills">${genres.map(g => `<span class="hero-genre-pill">${esc(g)}</span>`).join('')}</div>` : ''}
+    <h1 class="hero-title">${esc(m.title)}</h1>
+    <div class="hero-meta-line">
+      ${m.year       ? `<span>${m.year}</span><span class="sep">·</span>` : ''}
+      ${m.vote_average ? `<span class="hero-rating">★ ${m.vote_average}</span>` : ''}
+      ${m.runtime    ? `<span class="sep">·</span><span>${m.runtime} min</span>` : ''}
+    </div>
+    ${m.overview ? `<p class="hero-overview">${esc(m.overview)}</p>` : ''}
+    <div class="hero-actions">
+      <button class="hero-btn hero-btn-primary" id="heroAddBtn">+ Add to List</button>
+      <button class="hero-btn hero-btn-secondary" id="heroInfoBtn">More Info</button>
+    </div>
+  `;
+
+  $('heroAddBtn').addEventListener('click', e => { e.stopPropagation(); addMovie(m); });
+  $('heroInfoBtn').addEventListener('click', e => { e.stopPropagation(); openModal(m); });
+
+  // Update dots
+  document.querySelectorAll('.hero-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === idx);
+  });
+}
+
+function buildHeroDots() {
+  const dotsEl = $('heroDots');
+  dotsEl.innerHTML = _heroMovies.map((_, i) =>
+    `<div class="hero-dot${i === 0 ? ' active' : ''}" data-idx="${i}"></div>`
+  ).join('');
+  dotsEl.querySelectorAll('.hero-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      stopHeroTimer();
+      renderHeroSlide(parseInt(dot.dataset.idx), true);
+      startHeroTimer();
+    });
+  });
+}
+
+function startHeroTimer() {
+  stopHeroTimer();
+  _heroTimer = setInterval(() => {
+    renderHeroSlide((_heroIdx + 1) % _heroMovies.length, true);
+  }, 7000);
+}
+
+function stopHeroTimer() {
+  if (_heroTimer) { clearInterval(_heroTimer); _heroTimer = null; }
+}
 
 // ── Search ─────────────────────────────────────────────────────────────────
 let searchDebounce = null;
@@ -59,9 +154,7 @@ searchInput.addEventListener('keydown', e => {
     items.forEach((el, i) => el.classList.toggle('focused', i === focusedIdx));
   } else if (e.key === 'Enter') {
     e.preventDefault();
-    if (focusedIdx >= 0 && items[focusedIdx]) {
-      items[focusedIdx].click();
-    }
+    if (focusedIdx >= 0 && items[focusedIdx]) items[focusedIdx].click();
   } else if (e.key === 'Escape') {
     closeSuggestions();
   }
@@ -76,9 +169,7 @@ async function fetchSuggestions(query) {
     const res = await fetch(`${API}/search?query=${encodeURIComponent(query)}`);
     const movies = await res.json();
     renderSuggestions(movies);
-  } catch {
-    closeSuggestions();
-  }
+  } catch { closeSuggestions(); }
 }
 
 function renderSuggestions(movies) {
@@ -96,7 +187,6 @@ function renderSuggestions(movies) {
       <div class="suggestion-rating">★ ${m.vote_average || ''}</div>
     </div>
   `).join('');
-
   suggestions.querySelectorAll('.suggestion-item').forEach((el, i) => {
     el.addEventListener('click', () => addMovie(movies[i]));
   });
@@ -123,6 +213,7 @@ function addMovie(movie) {
   searchInput.value = '';
   recommendBtn.disabled = false;
   emptyHint.style.display = 'none';
+  showToast(`Added ${movie.title}`);
 }
 
 function removeMovie(id) {
@@ -137,7 +228,6 @@ function removeMovie(id) {
 function setRating(movieId, rating) {
   const m = state.liked.find(m => m.id === movieId);
   if (m) m.rating = rating;
-  // Update star display
   const chip = selectedMovies.querySelector(`[data-chip-id="${movieId}"]`);
   if (chip) {
     chip.querySelectorAll('.star').forEach((s, i) => {
@@ -147,9 +237,7 @@ function setRating(movieId, rating) {
 }
 
 function renderChips() {
-  // Remove all existing chips (not the empty hint)
   selectedMovies.querySelectorAll('.selected-chip').forEach(el => el.remove());
-
   state.liked.forEach(m => {
     const chip = document.createElement('div');
     chip.className = 'selected-chip';
@@ -185,14 +273,14 @@ async function fetchRecommendations(reset = true) {
 
   showLoading(true);
   searchPanel.style.display = 'none';
+  heroSection.style.display = 'none';
   resultsPanel.style.display = 'block';
   discoverySection.style.display = 'none';
 
   try {
     const body = {
       liked: state.liked.map(m => ({
-        id: m.id,
-        title: m.title,
+        id: m.id, title: m.title,
         ...(m.rating ? { rating: m.rating } : {}),
       })),
       page: state.currentPage,
@@ -209,14 +297,13 @@ async function fetchRecommendations(reset = true) {
 
     if (reset) {
       resultsGrid.innerHTML = '';
-      const titles = state.liked.map(m => m.title).join(', ');
-      resultsSubtitle.textContent = `Based on: ${titles}`;
+      resultsSubtitle.textContent = `Based on: ${state.liked.map(m => m.title).join(', ')}`;
     }
 
     renderMovieCards(data.recommendations || [], resultsGrid, true);
     loadMoreWrapper.style.display = state.currentPage < state.totalPages ? '' : 'none';
-  } catch (e) {
-    resultsGrid.innerHTML = `<p style="color:var(--text-dim);grid-column:1/-1">Could not load recommendations. Is the backend running?</p>`;
+  } catch {
+    resultsGrid.innerHTML = `<p style="color:var(--text-dim);grid-column:1/-1;padding:60px;text-align:center">Could not load recommendations.</p>`;
   } finally {
     showLoading(false);
   }
@@ -236,10 +323,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 
     if (state.currentTab === 'forYou') {
       resultsGrid.innerHTML = '';
-      state.recs.forEach(m => {
-        const card = buildCard(m);
-        resultsGrid.appendChild(card);
-      });
+      state.recs.forEach(m => resultsGrid.appendChild(buildCard(m)));
       loadMoreWrapper.style.display = state.currentPage < state.totalPages ? '' : 'none';
       return;
     }
@@ -254,7 +338,7 @@ document.querySelectorAll('.tab').forEach(tab => {
       const movies = await res.json();
       renderMovieCards(movies, resultsGrid, false);
     } catch {
-      resultsGrid.innerHTML = `<p style="color:var(--text-dim);grid-column:1/-1">Could not load data.</p>`;
+      resultsGrid.innerHTML = `<p style="color:var(--text-dim);grid-column:1/-1;padding:40px;text-align:center">Could not load data.</p>`;
     } finally {
       showLoading(false);
     }
@@ -265,32 +349,35 @@ document.querySelectorAll('.tab').forEach(tab => {
 backBtn.addEventListener('click', () => {
   resultsPanel.style.display = 'none';
   searchPanel.style.display = '';
+  heroSection.style.display = '';
   discoverySection.style.display = '';
-  // Reset tab
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'forYou'));
   state.currentTab = 'forYou';
 });
 
-// ── Discovery (cold start) ─────────────────────────────────────────────────
+// ── Discovery ──────────────────────────────────────────────────────────────
 async function loadDiscovery() {
   try {
     const [tRes, trRes] = await Promise.all([
-      fetch(`${API}/top-rated?n=12`),
-      fetch(`${API}/trending?n=12`),
+      fetch(`${API}/top-rated?n=16`),
+      fetch(`${API}/trending?n=16`),
     ]);
     const topRated = await tRes.json();
     const trending = await trRes.json();
+
+    if (trending.length) initHero(trending);
+
     renderMovieCards(trending, trendingRow, false);
     renderMovieCards(topRated, topRatedRow, false);
   } catch {
-    // Silently fail — discovery is non-critical
+    // Non-critical
   }
 }
 
 // ── Card rendering ─────────────────────────────────────────────────────────
 function renderMovieCards(movies, container, animate) {
   movies.forEach((m, i) => {
-    const card = buildCard(m, animate ? i * 40 : 0);
+    const card = buildCard(m, animate ? i * 35 : 0);
     container.appendChild(card);
   });
 }
@@ -298,29 +385,27 @@ function renderMovieCards(movies, container, animate) {
 function buildCard(m, delayMs = 0) {
   const card = document.createElement('div');
   card.className = 'movie-card';
-  card.style.animationDelay = `${delayMs}ms`;
+  if (delayMs) card.style.animationDelay = `${delayMs}ms`;
 
   const posterInner = m.poster
     ? `<img class="card-poster" src="${m.poster}" alt="${esc(m.title)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'card-poster-placeholder\\'>🎬</div>'">`
     : `<div class="card-poster-placeholder">🎬</div>`;
 
-  const genres = (m.genres || []).slice(0, 2);
   card.innerHTML = `
-    <div class="card-poster-wrap">${posterInner}</div>
-    <div class="card-body">
-      <div class="card-title">${esc(m.title)}</div>
-      <div class="card-meta">
-        ${m.year ? `<span>${m.year}</span><span class="dot">·</span>` : ''}
-        <span class="card-rating">★ ${m.vote_average || '?'}</span>
+    <div class="card-poster-wrap">
+      ${posterInner}
+      <div class="card-hover-overlay">
+        <div class="card-hover-title">${esc(m.title)}</div>
+        <div class="card-hover-meta">${m.year ? m.year : ''}${m.vote_average ? ` · ★ ${m.vote_average}` : ''}</div>
+        <button class="card-hover-add">+ Add to List</button>
       </div>
-      ${m.reason ? `<div class="card-reason">${esc(m.reason)}</div>` : ''}
-      ${genres.length ? `
-        <div class="card-genres">
-          ${genres.map(g => `<span class="genre-tag">${esc(g)}</span>`).join('')}
-        </div>` : ''}
     </div>
   `;
 
+  card.querySelector('.card-hover-add').addEventListener('click', e => {
+    e.stopPropagation();
+    addMovie(m);
+  });
   card.addEventListener('click', () => openModal(m));
   return card;
 }
@@ -333,7 +418,7 @@ function openLightbox(stills, idx) {
   _galleryStills = stills;
   _galleryIdx = idx;
 
-  let lb = document.getElementById('galleryLightbox');
+  let lb = $('galleryLightbox');
   if (!lb) {
     lb = document.createElement('div');
     lb.id = 'galleryLightbox';
@@ -358,18 +443,15 @@ function openLightbox(stills, idx) {
       if (e.key === 'Escape')     closeLightbox();
     });
   }
-
   renderLightboxSlide();
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 function renderLightboxSlide() {
-  const lb = document.getElementById('galleryLightbox');
-  const img = lb.querySelector('.lb-img');
-  const counter = lb.querySelector('.lb-counter');
-  img.src = _galleryStills[_galleryIdx].full;
-  counter.textContent = `${_galleryIdx + 1} / ${_galleryStills.length}`;
+  const lb = $('galleryLightbox');
+  lb.querySelector('.lb-img').src = _galleryStills[_galleryIdx].full;
+  lb.querySelector('.lb-counter').textContent = `${_galleryIdx + 1} / ${_galleryStills.length}`;
   lb.querySelector('.lb-prev').style.display = _galleryIdx === 0 ? 'none' : '';
   lb.querySelector('.lb-next').style.display = _galleryIdx === _galleryStills.length - 1 ? 'none' : '';
 }
@@ -380,7 +462,7 @@ function stepLightbox(dir) {
 }
 
 function closeLightbox() {
-  const lb = document.getElementById('galleryLightbox');
+  const lb = $('galleryLightbox');
   if (lb) lb.classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -403,8 +485,8 @@ function buildGallerySection(d) {
 function buildCrewCastSection(d) {
   const crewItems = [];
   if (d.directors?.length)  crewItems.push({ role: 'Director',   names: d.directors.join(', ') });
-  else if (d.director)       crewItems.push({ role: 'Director',   names: d.director });
-  if (d.writers?.length)     crewItems.push({ role: 'Screenplay', names: d.writers.join(', ') });
+  else if (d.director)      crewItems.push({ role: 'Director',   names: d.director });
+  if (d.writers?.length)    crewItems.push({ role: 'Screenplay', names: d.writers.join(', ') });
 
   const castDetail = d.cast_detail || [];
   if (!crewItems.length && !castDetail.length) return '';
@@ -435,9 +517,9 @@ function buildCrewCastSection(d) {
 }
 
 function renderModal(detail, alreadyAdded) {
-  const genres = (detail.genres || []);
+  const genres = detail.genres || [];
   modalBody.innerHTML = `
-    ${detail.backdrop ? `<div class="modal-backdrop-img" style="background-image:url(${detail.backdrop})"></div>` : ''}
+    ${detail.backdrop ? `<div class="modal-backdrop-img" style="background-image:url(${detail.backdrop.replace('w780','w1280')})"></div>` : ''}
     <div class="modal-poster-row">
       ${detail.poster
         ? `<img class="modal-poster" src="${detail.poster}" alt="${esc(detail.title)}" onerror="this.outerHTML='<div class=\\'modal-poster-placeholder\\'>🎬</div>'">`
@@ -445,15 +527,15 @@ function renderModal(detail, alreadyAdded) {
       <div class="modal-info">
         <div class="modal-title">${esc(detail.title)}</div>
         <div class="modal-meta">
-          ${detail.year ? `<span>${detail.year}</span><span class="dot">·</span>` : ''}
+          ${detail.year    ? `<span>${detail.year}</span><span class="dot">·</span>` : ''}
           ${detail.runtime ? `<span class="modal-runtime">${detail.runtime} min</span><span class="dot">·</span>` : ''}
           <span class="modal-rating-badge">★ ${detail.vote_average || '?'}</span>
         </div>
         ${(detail.imdb_rating || detail.rt_score || detail.metacritic) ? `
         <div class="modal-scores">
           ${detail.imdb_rating ? `<span class="score-badge score-imdb"><span class="score-logo">IMDb</span>${detail.imdb_rating}</span>` : ''}
-          ${detail.rt_score ? `<span class="score-badge score-rt"><span class="score-logo">RT</span>${detail.rt_score}</span>` : ''}
-          ${detail.metacritic ? `<span class="score-badge score-mc"><span class="score-logo">MC</span>${detail.metacritic}</span>` : ''}
+          ${detail.rt_score    ? `<span class="score-badge score-rt"><span class="score-logo">RT</span>${detail.rt_score}</span>` : ''}
+          ${detail.metacritic  ? `<span class="score-badge score-mc"><span class="score-logo">MC</span>${detail.metacritic}</span>` : ''}
         </div>` : ''}
         ${detail.tagline ? `<div class="modal-tagline">${esc(detail.tagline)}</div>` : ''}
         ${genres.length ? `
@@ -478,10 +560,11 @@ function renderModal(detail, alreadyAdded) {
         </iframe>
       </div>` : ''}
   `;
-  document.getElementById('modalAddBtn').addEventListener('click', () => {
+
+  $('modalAddBtn').addEventListener('click', () => {
     addMovie(detail);
-    document.getElementById('modalAddBtn').disabled = true;
-    document.getElementById('modalAddBtn').textContent = '✓ In your list';
+    $('modalAddBtn').disabled = true;
+    $('modalAddBtn').textContent = '✓ In your list';
   });
 
   if (detail.stills?.length) {
@@ -494,18 +577,17 @@ function renderModal(detail, alreadyAdded) {
 async function openModal(m) {
   const alreadyAdded = state.liked.find(l => l.id === m.id);
   renderModal(m, alreadyAdded);
-  modal.style.display = 'flex';
+  modal.style.display = 'block';
   document.body.style.overflow = 'hidden';
 
-  // Fetch enriched details (scores, director, trailer, etc.) in background
   try {
     const tmdbId = m.tmdb_id || m.id;
     const res = await fetch(`${API}/browse/movie/${tmdbId}`);
-    if (res.ok && modal.style.display === 'flex') {
+    if (res.ok && modal.style.display !== 'none') {
       const detail = await res.json();
       renderModal(detail, state.liked.find(l => l.id === m.id));
     }
-  } catch { /* keep basic modal if enrichment fails */ }
+  } catch { /* keep basic modal */ }
 }
 
 function closeModal() {
@@ -515,12 +597,12 @@ function closeModal() {
 
 modalClose.addEventListener('click', closeModal);
 modalBackdrop.addEventListener('click', closeModal);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeLightbox(); } });
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function showLoading(show) {
   loadingState.style.display = show ? '' : 'none';
-  resultsGrid.style.opacity = show ? '0.3' : '1';
+  resultsGrid.style.opacity  = show ? '0.3' : '1';
 }
 
 function esc(str) {
