@@ -321,6 +321,7 @@ async function fetchRecommendations(reset = true) {
 
     renderMovieCards(data.recommendations || [], resultsGrid, true);
     loadMoreWrapper.style.display = state.currentPage < state.totalPages ? '' : 'none';
+    if (reset) buildFilterBar();
   } catch {
     resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:60px;text-align:center">Could not load recommendations.</p>`;
   } finally {
@@ -375,6 +376,9 @@ backBtn.addEventListener('click', () => {
   discoverySection.style.display = '';
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'forYou'));
   state.currentTab = 'forYou';
+  _filterState = { genre: '', sort: 'relevance' };
+  const bar = $('filterBar');
+  if (bar) bar.remove();
 });
 
 // ── Skeleton loaders ──────────────────────────────────────────────────────
@@ -530,6 +534,165 @@ function buildGallerySection(d) {
     </div>`;
 }
 
+// ── Filter bar (recommendations) ──────────────────────────────────────────
+let _filterState = { genre: '', sort: 'relevance' };
+
+function buildFilterBar() {
+  // Extract unique genres from ALL loaded recs
+  const genreCount = {};
+  state.recs.forEach(m => (m.genres || []).forEach(g => { genreCount[g] = (genreCount[g] || 0) + 1; }));
+  const genres = Object.entries(genreCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 9)
+    .map(([g]) => g);
+
+  let bar = $('filterBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'filterBar';
+    bar.className = 'filter-bar';
+    resultsPanel.insertBefore(bar, resultsGrid);
+  }
+
+  bar.innerHTML = `
+    <div class="filter-genre-pills">
+      ${genres.map(g => `<button class="filter-genre-pill${_filterState.genre === g ? ' active' : ''}" data-genre="${esc(g)}">${esc(g)}</button>`).join('')}
+    </div>
+    <div class="filter-controls">
+      <select id="filterSort" class="filter-select">
+        <option value="relevance"   ${_filterState.sort === 'relevance'   ? 'selected' : ''}>Relevance</option>
+        <option value="rating-desc" ${_filterState.sort === 'rating-desc' ? 'selected' : ''}>Best Rated</option>
+        <option value="year-desc"   ${_filterState.sort === 'year-desc'   ? 'selected' : ''}>Newest</option>
+        <option value="year-asc"    ${_filterState.sort === 'year-asc'    ? 'selected' : ''}>Oldest</option>
+      </select>
+      <button id="filterReset" class="filter-reset">Clear</button>
+    </div>
+  `;
+
+  bar.querySelectorAll('.filter-genre-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      _filterState.genre = pill.classList.contains('active') ? '' : pill.dataset.genre;
+      bar.querySelectorAll('.filter-genre-pill').forEach(p =>
+        p.classList.toggle('active', p.dataset.genre === _filterState.genre)
+      );
+      applyFilters();
+    });
+  });
+
+  $('filterSort').addEventListener('change', e => {
+    _filterState.sort = e.target.value;
+    applyFilters();
+  });
+
+  $('filterReset').addEventListener('click', () => {
+    _filterState = { genre: '', sort: 'relevance' };
+    buildFilterBar();
+    applyFilters();
+  });
+}
+
+function applyFilters() {
+  let filtered = [...state.recs];
+  if (_filterState.genre) filtered = filtered.filter(m => (m.genres || []).includes(_filterState.genre));
+  if (_filterState.sort === 'rating-desc') filtered.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
+  if (_filterState.sort === 'year-desc')   filtered.sort((a, b) => (b.year || 0) - (a.year || 0));
+  if (_filterState.sort === 'year-asc')    filtered.sort((a, b) => (a.year || 0) - (b.year || 0));
+
+  resultsGrid.innerHTML = '';
+  if (filtered.length) {
+    filtered.forEach((m, i) => resultsGrid.appendChild(buildCard(m, i * 25)));
+  } else {
+    resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:40px;text-align:center">No movies match these filters.</p>`;
+  }
+  // Hide load-more when filters are active
+  loadMoreWrapper.style.display = (_filterState.genre || _filterState.sort !== 'relevance')
+    ? 'none'
+    : (state.currentPage < state.totalPages ? '' : 'none');
+}
+
+// ── Providers section ──────────────────────────────────────────────────────
+function buildProvidersSection(d) {
+  const p = d.watch_providers;
+  if (!p) return '';
+  const stream = p.stream || [];
+  const rent   = (p.rent || []).slice(0, 5);
+  if (!stream.length && !rent.length) return '';
+
+  const logoHtml = arr => arr.map(pr =>
+    pr.logo
+      ? `<img class="provider-logo" src="${pr.logo}" alt="${esc(pr.name)}" title="${esc(pr.name)}" loading="lazy" onerror="this.style.display='none'">`
+      : `<span style="font-size:10px;color:var(--t3);padding:4px">${esc(pr.name.slice(0,8))}</span>`
+  ).join('');
+
+  const rows = [];
+  if (stream.length) rows.push(`<div class="providers-row"><span class="providers-row-label">Stream</span>${logoHtml(stream)}</div>`);
+  if (rent.length)   rows.push(`<div class="providers-row"><span class="providers-row-label">Rent</span>${logoHtml(rent)}</div>`);
+
+  return `
+    <div class="modal-providers">
+      <div class="modal-section-label">Where to Watch</div>
+      <div class="modal-providers-rows">${rows.join('')}</div>
+      ${p.link ? `<a class="providers-more-link" href="${p.link}" target="_blank" rel="noopener noreferrer">More options →</a>` : ''}
+    </div>`;
+}
+
+// ── Collection section ─────────────────────────────────────────────────────
+function buildCollectionSection(d) {
+  if (!d.collection) return '';
+  const c = d.collection;
+  return `
+    <div class="modal-collection" id="modalCollectionLink"
+         data-collection-id="${c.id}" data-collection-name="${esc(c.name)}">
+      ${c.poster
+        ? `<img class="modal-collection-poster" src="${c.poster}" alt="" loading="lazy" onerror="this.style.display='none'">`
+        : `<div class="modal-collection-poster"></div>`}
+      <div class="modal-collection-info">
+        <div class="modal-collection-sub">Part of a Collection</div>
+        <div class="modal-collection-name">${esc(c.name)}</div>
+      </div>
+      <span class="modal-collection-arrow">›</span>
+    </div>`;
+}
+
+// ── Wire collection link ───────────────────────────────────────────────────
+function wireCollectionLink() {
+  const link = $('modalCollectionLink');
+  if (!link) return;
+  link.addEventListener('click', () => {
+    const id   = parseInt(link.dataset.collectionId);
+    const name = link.dataset.collectionName;
+    if (typeof window.browseCollection === 'function') window.browseCollection(id, name);
+  });
+}
+
+// ── Load similar movies into modal ────────────────────────────────────────
+async function loadSimilarMovies(tmdbId) {
+  const container = $('modalSimilar');
+  if (!container) return;
+  try {
+    const res = await fetch(`${API}/browse/movie/${tmdbId}/similar`);
+    if (!res.ok || !container.isConnected) return;
+    const data = await res.json();
+    const movies = (data.results || []).slice(0, 12);
+    if (!movies.length || !container.isConnected) return;
+    container.innerHTML = `
+      <div class="modal-similar">
+        <div class="modal-similar-label">More Like This</div>
+        <div class="modal-similar-row" id="modalSimilarRow"></div>
+      </div>`;
+    const row = $('modalSimilarRow');
+    movies.forEach((m, i) => {
+      const card = buildCard(m, i * 30);
+      row.appendChild(card);
+    });
+    // Wire fade-in for these posters too
+    row.querySelectorAll('.card-poster').forEach(img => {
+      if (img.complete && img.naturalWidth) img.classList.add('img-loaded');
+      else img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
+    });
+  } catch { /* silently fail */ }
+}
+
 // ── Modal ──────────────────────────────────────────────────────────────────
 function buildCrewCastSection(d) {
   const crewItems = [];
@@ -567,6 +730,9 @@ function buildCrewCastSection(d) {
 
 function renderModal(detail, alreadyAdded) {
   const genres = detail.genres || [];
+  const wlStatus = typeof window.watchlist !== 'undefined'
+    ? window.watchlist.getStatus(detail.tmdb_id || detail.id) : null;
+
   modalBody.innerHTML = `
     ${detail.backdrop ? `<div class="modal-backdrop-img" style="background-image:url(${detail.backdrop.replace('w780','w1280')})"></div>` : ''}
     <div class="modal-poster-row">
@@ -595,10 +761,17 @@ function renderModal(detail, alreadyAdded) {
           <button class="modal-add-btn" id="modalAddBtn" ${alreadyAdded ? 'disabled' : ''}>
             ${alreadyAdded ? '✓ In List' : '+ Add to List'}
           </button>
+          <button class="modal-watchlist-btn${wlStatus === 'watched' ? ' is-watched' : wlStatus === 'watchlist' ? ' is-watchlisted' : ''}"
+            id="modalWatchlistBtn" data-tmdb="${detail.tmdb_id || detail.id}"
+            title="${wlStatus === 'watched' ? 'Click to remove' : wlStatus === 'watchlist' ? 'Click to mark as watched' : 'Save to your watchlist'}">
+            ${wlStatus === 'watched' ? '✓ Watched' : wlStatus === 'watchlist' ? '★ Watchlisted' : '+ Watchlist'}
+          </button>
         </div>
       </div>
     </div>
     ${detail.overview ? `<div class="modal-overview">${esc(detail.overview)}</div>` : ''}
+    ${buildProvidersSection(detail)}
+    ${buildCollectionSection(detail)}
     ${buildCrewCastSection(detail)}
     ${buildGallerySection(detail)}
     ${detail.trailer_key ? `
@@ -608,6 +781,7 @@ function renderModal(detail, alreadyAdded) {
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
         </iframe>
       </div>` : ''}
+    <div id="modalSimilar"></div>
   `;
 
   $('modalAddBtn').addEventListener('click', () => {
@@ -615,6 +789,14 @@ function renderModal(detail, alreadyAdded) {
     $('modalAddBtn').disabled = true;
     $('modalAddBtn').textContent = '✓ In your list';
   });
+
+  // Wire watchlist button
+  if (typeof window.watchlist !== 'undefined') {
+    window.watchlist.wireModalBtn(detail);
+  }
+
+  // Wire collection link
+  wireCollectionLink();
 
   if (detail.stills?.length) {
     modalBody.querySelectorAll('.gallery-still').forEach(img => {
@@ -656,6 +838,7 @@ async function openModal(m) {
     if (res.ok && modal.style.display !== 'none') {
       const detail = await res.json();
       renderModal(detail, state.liked.find(l => l.id === m.id));
+      loadSimilarMovies(detail.tmdb_id || detail.id);
     }
   } catch { /* keep basic modal */ }
 }

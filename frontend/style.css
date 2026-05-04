@@ -1585,3 +1585,231 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════
+   NEW FEATURES — Watchlist, Providers, Similar,
+   Collection, Filter Bar, Advanced Search
+   ═══════════════════════════════════════════════════ */
+
+/* ── Watchlist button in modal ───────────────────── */
+.modal-watchlist-btn {
+  padding: 9px 16px;
+  border-radius: var(--r-pill);
+  border: 0.5px solid var(--b2);
+  background: transparent;
+  color: var(--t2);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit;
+  transition: all 0.18s var(--ease);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+.modal-watchlist-btn:hover { background: rgba(255,255,255,0.08); color: var(--t1); border-color: rgba(255,255,255,0.3); }
+.modal-watchlist-btn.is-watchlisted {
+  background: rgba(255,255,255,0.08);
+  color: var(--t1); border-color: rgba(255,255,255,0.25);
+}
+.modal-watchlist-btn.is-watched {
+  background: rgba(48,209,88,0.12);
+  color: #30d158; border-color: rgba(48,209,88,0.3);
+}
+
+/* ── Watchlist dot on cards ──────────────────────── */
+.card-wl-dot {
+  position: absolute; z-index: 4;
+  top: 7px; left: 7px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 0 0 1.5px rgba(0,0,0,0.55);
+  pointer-events: none;
+}
+.card-wl-dot.is-watched { background: #30d158; }
+
+/* ── Streaming providers section in modal ────────── */
+.modal-providers {
+  padding: 20px 28px;
+  border-top: 0.5px solid var(--b1);
+}
+.modal-providers-rows { display: flex; flex-direction: column; gap: 10px; }
+.providers-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.providers-row-label {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--t3);
+  font-weight: 600; min-width: 40px; flex: none;
+}
+.provider-logo {
+  width: 34px; height: 34px;
+  border-radius: var(--r8);
+  object-fit: cover;
+  background: var(--s3);
+  transition: transform 0.18s var(--ease), opacity 0.18s;
+}
+.provider-logo:hover { transform: scale(1.10); opacity: 0.85; }
+.providers-more-link {
+  font-size: 11px; color: var(--t3); text-decoration: none;
+  margin-left: auto; padding: 3px 0;
+  transition: color var(--t);
+}
+.providers-more-link:hover { color: var(--t2); }
+
+/* ── Collection / franchise section ─────────────── */
+.modal-collection {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 28px;
+  border-top: 0.5px solid var(--b1);
+  cursor: pointer;
+  transition: background var(--t);
+  text-decoration: none;
+}
+.modal-collection:hover { background: rgba(255,255,255,0.04); }
+.modal-collection-poster {
+  width: 38px; aspect-ratio: 2/3;
+  border-radius: var(--r4);
+  object-fit: cover; flex: none;
+  background: var(--s3);
+}
+.modal-collection-info { flex: 1; min-width: 0; }
+.modal-collection-sub {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--t3); font-weight: 600;
+}
+.modal-collection-name {
+  font-size: 14px; font-weight: 600; color: var(--t1);
+  letter-spacing: -0.02em; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.modal-collection-arrow { color: var(--t3); font-size: 18px; flex: none; }
+
+/* ── More Like This (in modal) ───────────────────── */
+.modal-similar {
+  padding: 20px 0 4px;
+  border-top: 0.5px solid var(--b1);
+}
+.modal-similar-label {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--t3);
+  font-weight: 600; margin-bottom: 12px;
+  padding: 0 28px;
+}
+.modal-similar-row {
+  display: flex; gap: 8px; overflow-x: auto;
+  padding: 4px 28px 14px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, #000 88%, transparent);
+  mask-image: linear-gradient(to right, #000 88%, transparent);
+}
+.modal-similar-row::-webkit-scrollbar { display: none; }
+.modal-similar-row .movie-card {
+  width: 100px !important; flex: none;
+  /* override scroll-row animation for these small cards */
+  animation: scaleIn 0.3s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+/* ── Recommendation filter bar ───────────────────── */
+.filter-bar {
+  padding: 0 72px 14px;
+  display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
+}
+.filter-genre-pills {
+  display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 auto;
+}
+.filter-genre-pill {
+  padding: 5px 12px; border-radius: var(--r-pill);
+  border: 0.5px solid var(--b1);
+  background: transparent; color: var(--t2);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all var(--t);
+  animation: fadeIn 0.2s var(--ease) both;
+}
+.filter-genre-pill:hover { border-color: var(--b2); color: var(--t1); background: rgba(255,255,255,0.06); }
+.filter-genre-pill.active { background: var(--t1); border-color: transparent; color: #000; font-weight: 600; }
+
+.filter-controls { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.filter-select {
+  padding: 5px 28px 5px 11px;
+  border-radius: var(--r-pill);
+  border: 0.5px solid var(--b1);
+  background: transparent;
+  color: var(--t2); font-size: 12px; font-weight: 500;
+  cursor: pointer; font-family: inherit; outline: none;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.35)' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  transition: border-color var(--t), color var(--t);
+}
+.filter-select:hover { border-color: var(--b2); color: var(--t1); }
+.filter-select option { background: #1c1c1e; color: #fff; }
+
+.filter-reset {
+  padding: 5px 12px; border-radius: var(--r-pill);
+  border: 0.5px solid var(--b1);
+  background: transparent; color: var(--t3);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all var(--t);
+}
+.filter-reset:hover { border-color: var(--b2); color: var(--t2); }
+
+.filter-results-count {
+  font-size: 12px; color: var(--t3);
+  padding: 0 72px 8px;
+  transition: opacity 0.3s;
+}
+
+@media (max-width: 768px) {
+  .filter-bar { padding: 0 16px 12px; }
+  .filter-results-count { padding: 0 16px 6px; }
+}
+
+/* ── Advanced search panel in Browse ────────────── */
+.browse-filter-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--r-pill);
+  border: 0.5px solid var(--b1);
+  background: transparent; color: var(--t2);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all var(--t); margin-top: 12px;
+}
+.browse-filter-toggle:hover { border-color: var(--b2); color: var(--t1); }
+.browse-filter-toggle.open { border-color: rgba(255,255,255,0.3); color: var(--t1); background: rgba(255,255,255,0.07); }
+
+.browse-adv-filters {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding-top: 14px;
+  animation: fadeUp 0.22s var(--ease) both;
+}
+.browse-adv-filters .filter-select { min-width: 120px; }
+
+.adv-filter-apply {
+  padding: 5px 16px; border-radius: var(--r-pill);
+  border: none; background: var(--t1); color: #000;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  font-family: inherit; transition: all 0.18s var(--ease);
+}
+.adv-filter-apply:hover { background: rgba(255,255,255,0.88); transform: scale(0.98); }
+
+.adv-filter-clear {
+  padding: 5px 12px; border-radius: var(--r-pill);
+  border: 0.5px solid var(--b1);
+  background: transparent; color: var(--t3);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all var(--t);
+}
+.adv-filter-clear:hover { border-color: var(--b2); color: var(--t2); }
+
+@media (max-width: 768px) {
+  .browse-adv-filters .filter-select { min-width: 0; flex: 1; }
+}
+
+/* ── Profile: status toggle on cards ────────────── */
+.profile-card-action {
+  display: block; width: 100%;
+  margin-top: 6px; padding: 5px 0;
+  border-radius: var(--r8);
+  border: 0.5px solid var(--b1);
+  background: transparent; color: var(--t3);
+  font-size: 11px; font-weight: 500; cursor: pointer;
+  font-family: inherit; transition: all var(--t); text-align: center;
+}
+.profile-card-action:hover { border-color: var(--b2); color: var(--t2); background: rgba(255,255,255,0.04); }
+.profile-card-action.mark-watched:hover { color: #30d158; border-color: rgba(48,209,88,0.35); }

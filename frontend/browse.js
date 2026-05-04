@@ -1,5 +1,6 @@
 /* MovieMind — Browse / Discover module */
-/* Depends on: API, esc(), showToast(), openModal(), addMovie(), buildGallerySection(), openLightbox() from app.js */
+/* Depends on: API, esc(), showToast(), openModal(), addMovie(), buildGallerySection(), openLightbox(),
+   buildProvidersSection(), buildCollectionSection(), wireCollectionLink(), loadSimilarMovies() from app.js */
 
 const browse = (() => {
   const st = {
@@ -9,7 +10,9 @@ const browse = (() => {
     searchQuery: '',
     gridPage: 1,
     gridTotalPages: 1,
-    mode: 'home',
+    mode: 'home',       // 'home' | 'search' | 'genre' | 'collection' | 'discover'
+    collectionId: null,
+    discoverParams: {},
   };
 
   const browseSearchInput  = document.getElementById('browseSearchInput');
@@ -69,6 +72,89 @@ const browse = (() => {
     browseSearchClear.style.display = 'none';
     showHome();
   });
+
+  // ── Advanced search filter panel ───────────────────────────────────────
+  const browseHeroEl = document.querySelector('.browse-hero');
+
+  function buildAdvFilterPanel() {
+    // Toggle button
+    let toggleBtn = document.getElementById('browseFilterToggle');
+    if (!toggleBtn) {
+      toggleBtn = document.createElement('button');
+      toggleBtn.id = 'browseFilterToggle';
+      toggleBtn.className = 'browse-filter-toggle';
+      toggleBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg> Filters`;
+      browseHeroEl.appendChild(toggleBtn);
+    }
+
+    let panel = document.getElementById('browseAdvFilters');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'browseAdvFilters';
+      panel.className = 'browse-adv-filters';
+      panel.style.display = 'none';
+      browseHeroEl.appendChild(panel);
+    }
+
+    panel.innerHTML = `
+      <select id="advDecade" class="filter-select">
+        <option value="">Any Decade</option>
+        <option value="2020">2020s</option>
+        <option value="2010">2010s</option>
+        <option value="2000">2000s</option>
+        <option value="1990">1990s</option>
+        <option value="1980">1980s</option>
+        <option value="1970">1970s</option>
+        <option value="1960">Before 1970</option>
+      </select>
+      <select id="advLanguage" class="filter-select">
+        <option value="">Any Language</option>
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="hi">Hindi</option>
+        <option value="zh">Chinese</option>
+        <option value="pt">Portuguese</option>
+        <option value="it">Italian</option>
+      </select>
+      <select id="advSort" class="filter-select">
+        <option value="popularity.desc">Most Popular</option>
+        <option value="vote_average.desc">Best Rated</option>
+        <option value="release_date.desc">Newest</option>
+        <option value="release_date.asc">Oldest</option>
+        <option value="revenue.desc">Highest Grossing</option>
+      </select>
+      <button id="advApply" class="adv-filter-apply">Apply</button>
+      <button id="advClear" class="adv-filter-clear">Clear</button>
+    `;
+
+    toggleBtn.addEventListener('click', () => {
+      const open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : '';
+      toggleBtn.classList.toggle('open', !open);
+    });
+
+    document.getElementById('advApply').addEventListener('click', () => {
+      const decade   = document.getElementById('advDecade').value;
+      const language = document.getElementById('advLanguage').value;
+      const sort     = document.getElementById('advSort').value;
+      if (!decade && !language && sort === 'popularity.desc') { showHome(); return; }
+      runDiscover({ decade, language, sort }, 1);
+    });
+
+    document.getElementById('advClear').addEventListener('click', () => {
+      ['advDecade', 'advLanguage', 'advSort'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = id === 'advSort' ? 'popularity.desc' : '';
+      });
+      panel.style.display = 'none';
+      toggleBtn.classList.remove('open');
+      showHome();
+    });
+  }
 
   // ── Genres ─────────────────────────────────────────────────────────────
   async function loadGenres() {
@@ -194,13 +280,89 @@ const browse = (() => {
     }
   }
 
+  // ── Collection flow ────────────────────────────────────────────────────
+  async function runCollection(id, name) {
+    st.mode = 'collection';
+    st.collectionId = id;
+    st.gridPage = 1;
+    browseGridCards.innerHTML = '';
+    showGridView(name);
+    setLoading(true);
+    if (typeof startProgress === 'function') startProgress();
+    try {
+      const res  = await fetch(`${API}/browse/collection/${id}`);
+      const data = await res.json();
+      const movies = data.results || [];
+      renderGridCards(movies, true);
+      browseLoadMoreWrap.style.display = 'none';
+    } catch {
+      browseGridCards.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:40px;text-align:center">Failed to load collection.</p>`;
+    } finally {
+      setLoading(false);
+      if (typeof finishProgress === 'function') finishProgress();
+    }
+  }
+
+  // ── Discover / advanced search flow ───────────────────────────────────
+  async function runDiscover(params, page) {
+    st.mode = 'discover';
+    st.discoverParams = params;
+    st.gridPage = page;
+    if (page === 1) browseGridCards.innerHTML = '';
+
+    const parts = [];
+    if (params.decade)   parts.push(`${params.decade}s`);
+    if (params.language) {
+      const langNames = { en:'English', es:'Spanish', fr:'French', de:'German', ja:'Japanese', ko:'Korean', hi:'Hindi', zh:'Chinese', pt:'Portuguese', it:'Italian' };
+      parts.push(langNames[params.language] || params.language.toUpperCase());
+    }
+    showGridView(parts.length ? parts.join(' · ') : 'Discover');
+    setLoading(true);
+    if (typeof startProgress === 'function') startProgress();
+    try {
+      const qs = new URLSearchParams({ page, sort: params.sort || 'popularity.desc' });
+      if (params.decade)   qs.set('decade',   params.decade);
+      if (params.language) qs.set('language', params.language);
+      if (params.genre_id) qs.set('genre_id', params.genre_id);
+      const res  = await fetch(`${API}/browse/discover?${qs}`);
+      const data = await res.json();
+      st.gridTotalPages = data.total_pages || 1;
+      renderGridCards(data.results || [], page === 1);
+      browseLoadMoreWrap.style.display = page < st.gridTotalPages ? '' : 'none';
+    } catch {
+      browseGridCards.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:40px;text-align:center">Failed to load.</p>`;
+    } finally {
+      setLoading(false);
+      if (typeof finishProgress === 'function') finishProgress();
+    }
+  }
+
   browseLoadMoreBtn.addEventListener('click', () => {
     const next = st.gridPage + 1;
-    if (st.mode === 'search') runSearch(st.searchQuery, next);
-    else if (st.mode === 'genre') runGenre(st.activeGenreId, st.activeGenreName, next);
+    if (st.mode === 'search')   runSearch(st.searchQuery, next);
+    else if (st.mode === 'genre')    runGenre(st.activeGenreId, st.activeGenreName, next);
+    else if (st.mode === 'discover') runDiscover(st.discoverParams, next);
   });
 
   browseGridClear.addEventListener('click', showHome);
+
+  // ── Expose collection opener globally (used by modal collection links) ──
+  window.browseCollection = function (id, name) {
+    // Close any open modal
+    const modal = document.getElementById('modal');
+    if (modal && modal.style.display !== 'none') {
+      modal.classList.add('closing');
+      setTimeout(() => {
+        modal.style.display = 'none';
+        modal.classList.remove('closing');
+        document.body.style.overflow = '';
+      }, 200);
+    }
+    // Switch to browse tab
+    document.querySelector('.nav-tab[data-view="browse"]')?.click();
+    // Slight delay so view switch completes
+    setTimeout(() => runCollection(id, name), 60);
+  };
 
   // ── Card rendering — uses same structure as app.js buildCard ───────────
   function buildBrowseCard(m) {
@@ -296,6 +458,7 @@ const browse = (() => {
       if (res.ok && modal.style.display !== 'none') {
         const detail = await res.json();
         renderBrowseModalContent(detail, true);
+        if (typeof loadSimilarMovies === 'function') loadSimilarMovies(detail.tmdb_id || detail.id);
       }
     } catch {}
   }
@@ -303,6 +466,8 @@ const browse = (() => {
   function renderBrowseModalContent(detail, enriched) {
     const modalBody = document.getElementById('modalBody');
     const alreadyAdded = typeof state !== 'undefined' && state.liked?.find(l => (l.id || l.tmdb_id) === (detail.id || detail.tmdb_id));
+    const wlStatus = typeof window.watchlist !== 'undefined'
+      ? window.watchlist.getStatus(detail.tmdb_id || detail.id) : null;
 
     modalBody.innerHTML = `
       ${detail.backdrop ? `<div class="modal-backdrop-img" style="background-image:url(${detail.backdrop.replace('w780','w1280')})"></div>` : ''}
@@ -332,11 +497,18 @@ const browse = (() => {
             <button class="modal-add-btn" id="modalAddBtn" ${alreadyAdded ? 'disabled' : ''}>
               ${alreadyAdded ? '✓ In List' : '+ Add to List'}
             </button>
+            <button class="modal-watchlist-btn${wlStatus === 'watched' ? ' is-watched' : wlStatus === 'watchlist' ? ' is-watchlisted' : ''}"
+              id="modalWatchlistBtn" data-tmdb="${detail.tmdb_id || detail.id}"
+              title="${wlStatus === 'watched' ? 'Click to remove' : wlStatus === 'watchlist' ? 'Mark as watched' : 'Save to watchlist'}">
+              ${wlStatus === 'watched' ? '✓ Watched' : wlStatus === 'watchlist' ? '★ Watchlisted' : '+ Watchlist'}
+            </button>
             <button class="modal-rec-btn" id="modalRecBtn">Recommend from this</button>
           </div>
         </div>
       </div>
       ${detail.overview ? `<div class="modal-overview">${esc(detail.overview)}</div>` : ''}
+      ${typeof buildProvidersSection === 'function' ? buildProvidersSection(detail) : ''}
+      ${typeof buildCollectionSection === 'function' ? buildCollectionSection(detail) : ''}
       ${buildCrewCastSection(detail)}
       ${typeof buildGallerySection === 'function' ? buildGallerySection(detail) : ''}
       ${detail.trailer_key ? `
@@ -346,6 +518,7 @@ const browse = (() => {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
           </iframe>
         </div>` : ''}
+      <div id="modalSimilar"></div>
     `;
 
     document.getElementById('modalAddBtn').addEventListener('click', () => {
@@ -353,6 +526,14 @@ const browse = (() => {
       document.getElementById('modalAddBtn').disabled = true;
       document.getElementById('modalAddBtn').textContent = '✓ In List';
     });
+
+    // Wire watchlist button
+    if (typeof window.watchlist !== 'undefined') {
+      window.watchlist.wireModalBtn({ ...detail, id: detail.tmdb_id || detail.id });
+    }
+
+    // Wire collection link
+    if (typeof wireCollectionLink === 'function') wireCollectionLink();
 
     document.getElementById('modalRecBtn').addEventListener('click', () => {
       if (typeof addMovie === 'function') addMovie({ ...detail, id: detail.tmdb_id || detail.id });
@@ -398,6 +579,7 @@ const browse = (() => {
   }
 
   async function init() {
+    buildAdvFilterPanel();
     if (typeof startProgress === 'function') startProgress();
     await Promise.all([loadGenres(), loadHomeRows()]);
     if (typeof finishProgress === 'function') finishProgress();

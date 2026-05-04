@@ -176,8 +176,18 @@
         </div>
         ${genres.length ? `<div class="card-genres">${genres.map(g => `<span class="genre-tag">${escHtml(g)}</span>`).join('')}</div>` : ''}
         <span class="profile-status-badge ${statusClass}">${statusLabel}</span>
+        ${m.status === 'watchlist'
+          ? `<button class="profile-card-action mark-watched" data-tmdb="${m.tmdb_id}">Mark as Watched ✓</button>`
+          : `<button class="profile-card-action" data-tmdb="${m.tmdb_id}">Move to Watchlist</button>`}
       </div>
     `;
+
+    // Poster fade-in
+    const img = card.querySelector('.card-poster');
+    if (img) {
+      if (img.complete && img.naturalWidth) img.classList.add('img-loaded');
+      else img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
+    }
 
     // Star rating
     card.querySelectorAll('.profile-star').forEach(star => {
@@ -190,11 +200,51 @@
         card.querySelectorAll('.profile-star').forEach((s, i) => {
           s.classList.toggle('active', i < val);
         });
-        // update cachedMovies
         const cached = cachedMovies.find(c => c.tmdb_id === tmdbId);
         if (cached) cached.rating = val;
       });
     });
+
+    // Status toggle button
+    const actionBtn = card.querySelector('.profile-card-action');
+    if (actionBtn) {
+      actionBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const tmdbId = parseInt(m.tmdb_id);
+        const newStatus = m.status === 'watchlist' ? 'watched' : 'watchlist';
+        try {
+          const res = await fetch(`${API}/profile/movies/${tmdbId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ status: newStatus }),
+          });
+          if (res.ok) {
+            m.status = newStatus;
+            // Update in-memory Sets if watchlist module is loaded
+            if (typeof window.watchlistIds !== 'undefined') {
+              if (newStatus === 'watched') {
+                window.watchedIds?.add(tmdbId);
+                window.watchlistIds?.delete(tmdbId);
+              } else {
+                window.watchlistIds?.add(tmdbId);
+                window.watchedIds?.delete(tmdbId);
+              }
+            }
+            const cached = cachedMovies.find(c => c.tmdb_id === tmdbId);
+            if (cached) cached.status = newStatus;
+            // Rebuild just this card in-place
+            const newCard = buildProfileCard(m);
+            card.replaceWith(newCard);
+            if (typeof showToast === 'function') {
+              showToast(newStatus === 'watched' ? 'Marked as watched ✓' : 'Moved to Watchlist');
+            }
+          }
+        } catch {
+          if (typeof showToast === 'function') showToast('Failed to update status');
+        }
+      });
+    }
 
     // Remove button
     card.querySelector('.profile-card-remove').addEventListener('click', async e => {
@@ -206,6 +256,10 @@
           credentials: 'include',
         });
         cachedMovies = cachedMovies.filter(c => c.tmdb_id !== tmdbId);
+        if (typeof window.watchlistIds !== 'undefined') {
+          window.watchlistIds?.delete(tmdbId);
+          window.watchedIds?.delete(tmdbId);
+        }
         card.remove();
         const grid = document.getElementById('profileGrid');
         if (grid && !grid.querySelector('.profile-movie-card')) {

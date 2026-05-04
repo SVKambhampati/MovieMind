@@ -219,7 +219,7 @@ def movie_detail(tmdb_id: int) -> dict:
         f'/movie/{tmdb_id}',
         {
             'language': 'en-US',
-            'append_to_response': 'credits,videos,images',
+            'append_to_response': 'credits,videos,images,watch/providers',
             'include_image_language': 'en,null',
         },
         ttl=1800,
@@ -262,5 +262,30 @@ def movie_detail(tmdb_id: int) -> dict:
         for img in backdrops[:14]
         if img.get('file_path')
     ]
+
+    # Streaming / watch providers — US region
+    def _fmt_provider(p: dict) -> dict:
+        return {
+            'name': p.get('provider_name', ''),
+            'logo': f"{IMG_W500}{p['logo_path']}" if p.get('logo_path') else None,
+        }
+
+    providers_raw = data.get('watch/providers', {}).get('results', {})
+    us = providers_raw.get('US', {})
+    m['watch_providers'] = {
+        'stream': [_fmt_provider(p) for p in us.get('flatrate', [])],
+        'rent':   [_fmt_provider(p) for p in us.get('rent',     [])[:5]],
+        'buy':    [_fmt_provider(p) for p in us.get('buy',      [])[:5]],
+        'link':   us.get('link', ''),
+    }
+
+    # Collection / franchise
+    coll = data.get('belongs_to_collection')
+    if coll:
+        m['collection'] = {
+            'id':     coll['id'],
+            'name':   coll.get('name', ''),
+            'poster': f"{IMG_W500}{coll['poster_path']}" if coll.get('poster_path') else None,
+        }
 
     return m

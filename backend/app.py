@@ -432,6 +432,78 @@ def browse_movie(tmdb_id: int):
         return jsonify({'error': 'Not found'}), 404
 
 
+@app.route('/api/browse/movie/<int:tmdb_id>/similar')
+def browse_movie_similar(tmdb_id: int):
+    try:
+        movies = tmdb.movie_similar(tmdb_id)
+        return jsonify({'results': movies[:12]})
+    except Exception as e:
+        logger.error(f'similar {tmdb_id}: {e}')
+        return jsonify({'results': []})
+
+
+@app.route('/api/browse/collection/<int:collection_id>')
+def browse_collection_movies(collection_id: int):
+    try:
+        movies = tmdb.get_collection(collection_id)
+        # Sort chronologically
+        movies.sort(key=lambda m: m.get('year') or 0)
+        return jsonify({'results': movies})
+    except Exception as e:
+        logger.error(f'collection {collection_id}: {e}')
+        return jsonify({'results': []})
+
+
+@app.route('/api/browse/discover')
+def browse_discover():
+    """Advanced discover with decade / language / genre / sort filters."""
+    page     = int(request.args.get('page', 1))
+    decade   = request.args.get('decade', '').strip()
+    language = request.args.get('language', '').strip()
+    genre_id = request.args.get('genre_id', '').strip()
+    sort_by  = request.args.get('sort', 'popularity.desc')
+
+    _valid_sorts = {
+        'popularity.desc', 'popularity.asc',
+        'vote_average.desc', 'vote_average.asc',
+        'release_date.desc', 'release_date.asc',
+        'revenue.desc',
+    }
+    if sort_by not in _valid_sorts:
+        sort_by = 'popularity.desc'
+
+    params: dict = {
+        'sort_by': sort_by,
+        'page': page,
+        'language': 'en-US',
+        'vote_count.gte': 80,
+    }
+
+    if decade and decade.isdigit():
+        y = int(decade)
+        params['primary_release_date.gte'] = f'{y}-01-01'
+        params['primary_release_date.lte'] = f'{min(y + 9, 2025)}-12-31'
+
+    if language:
+        params['with_original_language'] = language
+
+    if genre_id and genre_id.isdigit():
+        params['with_genres'] = genre_id
+
+    try:
+        gm = tmdb.get_genre_map()
+        data = tmdb._get('/discover/movie', params, ttl=600)
+        movies = [tmdb._fmt(m, gm) for m in data.get('results', [])]
+        return jsonify({
+            'results':     movies,
+            'page':        page,
+            'total_pages': data.get('total_pages', 1),
+        })
+    except Exception as e:
+        logger.error(f'discover: {e}')
+        return jsonify({'results': [], 'page': 1, 'total_pages': 1}), 502
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
