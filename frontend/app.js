@@ -43,6 +43,24 @@ window.addEventListener('scroll', () => {
   siteHeader.classList.toggle('scrolled', window.scrollY > 40);
 }, { passive: true });
 
+// ── Session cache (5-min TTL) ──────────────────────────────────────────────
+function cachedFetch(url, ttlMs = 300_000) {
+  const key = `mm_${url}`;
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw) {
+      const { ts, data } = JSON.parse(raw);
+      if (Date.now() - ts < ttlMs) return Promise.resolve(data);
+    }
+  } catch {}
+  return fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+      return data;
+    });
+}
+
 // ── Scroll reveal ─────────────────────────────────────────────────────────
 const revealObserver = new IntersectionObserver(entries => {
   entries.forEach(e => {
@@ -93,10 +111,13 @@ function renderHeroSlide(idx, crossfade = false) {
     heroBg.style.backgroundImage = newUrl;
   }
 
-  // Animate text change
+  // Animate text change — double-rAF avoids forced layout reflow
   heroMeta.classList.remove('hero-text-change');
-  void heroMeta.offsetWidth; // force reflow
-  heroMeta.classList.add('hero-text-change');
+  requestAnimationFrame(() => requestAnimationFrame(() => heroMeta.classList.add('hero-text-change')));
+
+  // Preload next hero image so the crossfade is instant
+  const nextM = _heroMovies[(_heroIdx + 1) % _heroMovies.length];
+  if (nextM?.backdrop) { const pi = new Image(); pi.src = nextM.backdrop.replace('w780', 'w1280'); }
 
   const genres = (m.genres || []).slice(0, 3);
   heroMeta.innerHTML = `
@@ -356,8 +377,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 
     try {
       const endpoint = state.currentTab === 'trending' ? 'trending' : 'top-rated';
-      const res = await fetch(`${API}/${endpoint}?n=20`);
-      const movies = await res.json();
+      const movies = await cachedFetch(`${API}/${endpoint}?n=20`);
       renderMovieCards(movies, resultsGrid, false);
     } catch {
       resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:40px;text-align:center">Could not load data.</p>`;
@@ -394,12 +414,10 @@ async function loadDiscovery() {
   showSkeletons(trendingRow);
   showSkeletons(topRatedRow);
   try {
-    const [tRes, trRes] = await Promise.all([
-      fetch(`${API}/top-rated?n=16`),
-      fetch(`${API}/trending?n=16`),
+    const [topRated, trending] = await Promise.all([
+      cachedFetch(`${API}/top-rated?n=16`),
+      cachedFetch(`${API}/trending?n=16`),
     ]);
-    const topRated = await tRes.json();
-    const trending = await trRes.json();
 
     if (trending.length) initHero(trending);
 
