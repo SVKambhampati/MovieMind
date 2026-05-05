@@ -376,22 +376,22 @@ const browse = (() => {
     card.innerHTML = `
       <div class="card-poster-wrap">
         ${posterInner}
+        ${m.vote_average ? `<div class="card-rating-pip">★ ${m.vote_average}</div>` : ''}
         <div class="card-hover-overlay">
-          <div class="card-hover-title">${esc(m.title)}</div>
-          <div class="card-hover-meta">${m.year ? m.year : ''}${m.vote_average ? ` · ★ ${m.vote_average}` : ''}</div>
           <button class="card-hover-add">+ Add to List</button>
         </div>
+      </div>
+      <div class="card-info">
+        <div class="card-title-text">${esc(m.title)}</div>
+        ${m.year ? `<div class="card-year-text">${m.year}</div>` : ''}
       </div>
     `;
 
     // Fade-in poster image when loaded
     const img = card.querySelector('.card-poster');
     if (img) {
-      if (img.complete && img.naturalWidth) {
-        img.classList.add('img-loaded');
-      } else {
-        img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
-      }
+      if (img.complete && img.naturalWidth) img.classList.add('img-loaded');
+      else img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
     }
 
     card.querySelector('.card-hover-add').addEventListener('click', e => {
