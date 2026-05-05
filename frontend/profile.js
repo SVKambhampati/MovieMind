@@ -63,20 +63,77 @@
       </div>`;
 
     try {
-      const [statsRes, moviesRes] = await Promise.all([
+      const [statsRes, moviesRes, dnaRes] = await Promise.all([
         fetch(`${API}/profile/stats`,  { credentials: 'include' }),
         fetch(`${API}/profile/movies`, { credentials: 'include' }),
+        fetch(`${API}/profile/dna`,    { credentials: 'include' }),
       ]);
       const stats  = await statsRes.json();
       const movies = await moviesRes.json();
+      const dna    = dnaRes.ok ? await dnaRes.json() : null;
       cachedMovies = movies;
-      renderProfile(stats, movies);
+      renderProfile(stats, movies, dna);
     } catch {
       viewProfile.innerHTML = `<div class="profile-loading"><p>Failed to load profile.</p></div>`;
     }
   }
 
-  function renderProfile(stats, movies) {
+  function renderDnaSection(dna) {
+    if (!dna || (!dna.genres?.length && !dna.decades?.length)) return '';
+
+    const genreRows = (dna.genres || []).slice(0, 7).map(([name, pct]) => `
+      <div class="dna-bar-row">
+        <span class="dna-bar-label">${escHtml(name)}</span>
+        <div class="dna-bar-track">
+          <div class="dna-bar-fill" style="width:${pct}%"></div>
+        </div>
+        <span class="dna-bar-pct">${Math.round(pct)}%</span>
+      </div>`).join('');
+
+    const decadeRows = (dna.decades || []).slice(0, 6).map(([decade, count]) => `
+      <div class="dna-bar-row">
+        <span class="dna-bar-label">${escHtml(decade)}s</span>
+        <div class="dna-bar-track">
+          <div class="dna-bar-fill dna-bar-fill-decade" style="width:${Math.min(count * 14, 100)}%"></div>
+        </div>
+        <span class="dna-bar-pct">${count}</span>
+      </div>`).join('');
+
+    const ratingDist = dna.rating_dist || {};
+    const maxRating  = Math.max(1, ...Object.values(ratingDist));
+    const ratingRows = [5,4,3,2,1].map(v => {
+      const c = ratingDist[v] || 0;
+      return `<div class="dna-rating-row">
+        <span class="dna-rating-star">★${v}</span>
+        <div class="dna-bar-track">
+          <div class="dna-bar-fill dna-bar-fill-rating" style="width:${Math.round(c/maxRating*100)}%"></div>
+        </div>
+        <span class="dna-bar-pct">${c}</span>
+      </div>`;
+    }).join('');
+
+    const topGenre  = dna.top_genre  ? `<span class="dna-badge">${escHtml(dna.top_genre)}</span>` : '';
+    const topDecade = dna.top_decade ? `<span class="dna-badge">${escHtml(dna.top_decade)}s film</span>` : '';
+
+    return `
+      <div class="profile-dna-section">
+        <h3 class="profile-section-title">Your Taste DNA</h3>
+        ${(topGenre || topDecade) ? `<div class="dna-badges">${topGenre}${topDecade}</div>` : ''}
+        <div class="dna-columns">
+          <div class="dna-col">
+            <div class="dna-col-label">Favourite Genres</div>
+            ${genreRows || '<p class="dna-empty">Rate more movies to see your genre profile.</p>'}
+          </div>
+          <div class="dna-col">
+            <div class="dna-col-label">Eras</div>
+            ${decadeRows || '<p class="dna-empty">Add more movies to see your era preferences.</p>'}
+            ${ratingRows ? `<div class="dna-col-label" style="margin-top:18px">Your Ratings</div>${ratingRows}` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderProfile(stats, movies, dna = null) {
     const u = window.currentUser;
     const initials = u.username.charAt(0).toUpperCase();
     const avgStr = stats.avg_rating != null ? stats.avg_rating.toFixed(1) : '—';
@@ -108,6 +165,8 @@
             </div>
           </div>
         </div>
+
+        ${renderDnaSection(dna)}
 
         <div class="profile-filter-tabs">
           <button class="profile-filter-tab ${currentFilter === 'all'       ? 'active' : ''}" data-filter="all">All</button>

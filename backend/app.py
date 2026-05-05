@@ -505,6 +505,184 @@ def browse_discover():
 
 
 # ---------------------------------------------------------------------------
+# Mood to seed movies
+# ---------------------------------------------------------------------------
+
+@app.route('/api/mood', methods=['POST'])
+def mood_to_seed():
+    """Use Claude to interpret a mood/vibe and return seed movies for the recommender."""
+    import anthropic as _anthropic
+    import json as _json
+
+    body = request.get_json(force=True, silent=True) or {}
+    mood = body.get('mood', '').strip()
+    if not mood or len(mood) < 3:
+        return jsonify({'error': 'Please describe your mood'}), 400
+
+    try:
+        client = _anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        msg = client.messages.create(
+            model='claude-3-5-haiku-20241022',
+            max_tokens=250,
+            messages=[{
+                'role': 'user',
+                'content': (
+                    f'Film expert task. A person wants to watch a movie and described their mood: "{mood}"\n\n'
+                    'Return JSON only, no other text:\n'
+                    '{\n'
+                    '  "seed_movies": ["Title 1", "Title 2", "Title 3"],\n'
+                    '  "vibe": "5-8 word evocative display phrase"\n'
+                    '}\n\n'
+                    'seed_movies: 3 well-known films that perfectly embody this mood. '
+                    'Pick from different decades/genres for diversity.\n'
+                    'vibe: poetic short phrase, e.g. "Quiet tension and moral weight"'
+                ),
+            }],
+        )
+        signals = _json.loads(msg.content[0].text)
+    except Exception as e:
+        logger.error(f'mood Claude error: {e}')
+        return jsonify({'error': 'Could not interpret mood'}), 500
+
+    seed_movies = []
+    for title in signals.get('seed_movies', [])[:3]:
+        try:
+            results, _ = tmdb.search(title, page=1)
+            if results:
+                seed_movies.append(results[0])
+        except Exception:
+            pass
+
+    if not seed_movies:
+        return jsonify({'error': 'No matching films found'}), 400
+
+    return jsonify({
+        'seed_movies': seed_movies,
+        'vibe': signals.get('vibe', mood),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Explain recommendations
+# ---------------------------------------------------------------------------
+
+@app.route('/api/explain', methods=['POST'])
+def explain_recommendations():
+    """Generate personalised one-sentence reasons for each recommendation."""
+    import anthropic as _anthropic
+    import json as _json
+
+    body = request.get_json(force=True, silent=True) or {}
+    liked = body.get('liked', [])
+    recs  = body.get('recs', [])
+    if not liked or not recs:
+        return jsonify({'explanations': []})
+
+    liked_titles = ', '.join(m.get('title', '') for m in liked[:3])
+    rec_lines = '\n'.join(
+        f'{i+1}. {m.get("title","")} ({m.get("year","")}) [{", ".join((m.get("genres") or [])[:2])}]'
+        for i, m in enumerate(recs[:12])
+    )
+
+    try:
+        client = _anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        msg = client.messages.create(
+            model='claude-3-5-haiku-20241022',
+            max_tokens=700,
+            messages=[{
+                'role': 'user',
+                'content': (
+                    f'User loves: {liked_titles}\n\n'
+                    f'For each film, write ONE sentence (10-14 words) explaining why THIS user would love it.\n'
+                    f'Be specific — name the shared quality (e.g. "slow-burn tension", "moral complexity", "inventive premise").\n\n'
+                    f'Films:\n{rec_lines}\n\n'
+                    f'Return a JSON array of {len(recs[:12])} strings, one per film, in order. No numbering.'
+                ),
+            }],
+        )
+        explanations = _json.loads(msg.content[0].text)
+        if not isinstance(explanations, list):
+            explanations = []
+        return jsonify({'explanations': explanations})
+    except Exception as e:
+        logger.error(f'explain error: {e}')
+        return jsonify({'explanations': []})
+
+
+# ---------------------------------------------------------------------------
+# Trailer key
+# ---------------------------------------------------------------------------
+
+@app.route('/api/browse/movie/<int:tmdb_id>/trailer-key')
+def movie_trailer_key(tmdb_id: int):
+    """Return just the YouTube trailer key for a movie (lightweight)."""
+    try:
+        data = tmdb._get(f'/movie/{tmdb_id}/videos', {}, ttl=86400)
+        videos = data.get('results', [])
+        trailer = next(
+            (v for v in videos if v.get('type') == 'Trailer' and v.get('site') == 'YouTube'),
+            None,
+        )
+        return jsonify({'key': trailer['key'] if trailer else None})
+    except Exception as e:
+        logger.error(f'trailer key {tmdb_id}: {e}')
+        return jsonify({'key': None})
+
+
+# ---------------------------------------------------------------------------
+# Taste DNA
+# ---------------------------------------------------------------------------
+
+@app.route('/api/profile/dna')
+def profile_dna():
+    """Analyse the logged-in user's movie history and return taste breakdown."""
+    from flask import session as _session
+    user_id = _session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    from models import UserMovie as _UM
+    movies = _UM.query.filter_by(user_id=user_id).all()
+    if not movies:
+        return jsonify({'empty': True, 'total': 0})
+
+    genre_counts: dict[str, int] = {}
+    decade_counts: dict[int, int] = {}
+    rating_dist: dict[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    watched = [m for m in movies if m.status == 'watched']
+
+    for m in movies:
+        for g in (m.genres or []):
+            genre_counts[g] = genre_counts.get(g, 0) + 1
+        if m.year:
+            try:
+                decade = (int(m.year) // 10) * 10
+                decade_counts[decade] = decade_counts.get(decade, 0) + 1
+            except (ValueError, TypeError):
+                pass
+        if m.rating:
+            r = int(m.rating)
+            if 1 <= r <= 5:
+                rating_dist[r] = rating_dist.get(r, 0) + 1
+
+    total = len(movies)
+    top_genres = sorted(genre_counts.items(), key=lambda x: -x[1])[:8]
+    genres_pct = [(g, round(c / total * 100)) for g, c in top_genres]
+    decades = sorted(decade_counts.items())
+
+    return jsonify({
+        'total':           total,
+        'watched_count':   len(watched),
+        'watchlist_count': total - len(watched),
+        'genres':          genres_pct,
+        'decades':         decades,
+        'rating_dist':     rating_dist,
+        'top_genre':       top_genres[0][0] if top_genres else None,
+        'top_decade':      max(decade_counts, key=decade_counts.get) if decade_counts else None,
+    })
+
+
+# ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
 

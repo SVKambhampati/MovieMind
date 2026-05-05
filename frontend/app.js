@@ -7,6 +7,9 @@ const API = window.location.hostname === 'localhost' || window.location.hostname
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
   liked: [],
+  likedA: [],          // Watch Together — Person A
+  likedB: [],          // Watch Together — Person B
+  currentMode: 'movie', // 'movie' | 'vibe' | 'together'
   currentPage: 1,
   totalPages: 1,
   currentTab: 'forYou',
@@ -302,7 +305,11 @@ function renderChips() {
 }
 
 // ── Recommendations ────────────────────────────────────────────────────────
-recommendBtn.addEventListener('click', () => fetchRecommendations(true));
+recommendBtn.addEventListener('click', () => {
+  if (state.currentMode === 'vibe')     fetchVibeRecommendations();
+  else if (state.currentMode === 'together') fetchTogetherRecommendations();
+  else fetchRecommendations(true);
+});
 
 async function fetchRecommendations(reset = true) {
   if (reset) {
@@ -342,7 +349,10 @@ async function fetchRecommendations(reset = true) {
 
     renderMovieCards(data.recommendations || [], resultsGrid, true);
     loadMoreWrapper.style.display = state.currentPage < state.totalPages ? '' : 'none';
-    if (reset) buildFilterBar();
+    if (reset) {
+      buildFilterBar();
+      if (state.liked.length) fetchExplanations(state.liked, data.recommendations || []);
+    }
   } catch {
     resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:60px;text-align:center">Could not load recommendations.</p>`;
   } finally {
@@ -452,6 +462,7 @@ function buildCard(m, delayMs = 0) {
     ? `<img class="card-poster" src="${m.poster}" alt="${esc(m.title)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'card-poster-placeholder\\'>🎬</div>'">`
     : `<div class="card-poster-placeholder">🎬</div>`;
 
+  const cardId = m.id || m.tmdb_id;
   card.innerHTML = `
     <div class="card-poster-wrap">
       ${posterInner}
@@ -463,6 +474,7 @@ function buildCard(m, delayMs = 0) {
     <div class="card-info">
       <div class="card-title-text">${esc(m.title)}</div>
       ${m.year ? `<div class="card-year-text">${m.year}</div>` : ''}
+      <div class="card-reason" id="reason-${cardId}"></div>
     </div>
   `;
 
@@ -481,6 +493,10 @@ function buildCard(m, delayMs = 0) {
     addMovie(m);
   });
   card.addEventListener('click', () => openModal(m));
+
+  // Wire trailer on hover (desktop only — skip touch devices)
+  if (window.matchMedia('(hover: hover)').matches) wireTrailerHover(card, m);
+
   return card;
 }
 
@@ -959,6 +975,326 @@ function showToast(msg) {
   toast.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+// ── Input mode tabs ────────────────────────────────────────────────────────
+const inputModeTabs   = $('inputModeTabs');
+const movieModeEl     = $('movieMode');
+const vibeModeEl      = $('vibeMode');
+const togetherModeEl  = $('togetherMode');
+const vibeTextarea    = $('vibeTextarea');
+const panelTitle      = $('panelTitle');
+const panelSub        = $('panelSub');
+
+const MODE_META = {
+  movie:   { title: 'What movies do you love?',   sub: 'Search and add movies you enjoy. Rate them for better results.' },
+  vibe:    { title: 'Describe your mood.',          sub: 'Tell Claude how you\'re feeling — it\'ll find the perfect films.' },
+  together:{ title: 'Watch Together.',              sub: 'Add picks from both of you and find something you\'ll both love.' },
+};
+
+function updateRecommendBtnState() {
+  if (state.currentMode === 'movie')   recommendBtn.disabled = state.liked.length === 0;
+  else if (state.currentMode === 'vibe') recommendBtn.disabled = (vibeTextarea?.value.trim().length || 0) < 5;
+  else if (state.currentMode === 'together') recommendBtn.disabled = state.likedA.length === 0 && state.likedB.length === 0;
+}
+
+if (inputModeTabs) {
+  inputModeTabs.querySelectorAll('.input-mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      state.currentMode = tab.dataset.mode;
+      inputModeTabs.querySelectorAll('.input-mode-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      movieModeEl.style.display    = state.currentMode === 'movie'    ? '' : 'none';
+      vibeModeEl.style.display     = state.currentMode === 'vibe'     ? '' : 'none';
+      togetherModeEl.style.display = state.currentMode === 'together' ? '' : 'none';
+      const meta = MODE_META[state.currentMode];
+      if (panelTitle) panelTitle.textContent = meta.title;
+      if (panelSub)   panelSub.textContent   = meta.sub;
+      updateRecommendBtnState();
+    });
+  });
+}
+
+if (vibeTextarea) {
+  vibeTextarea.addEventListener('input', updateRecommendBtnState);
+}
+
+// ── Watch Together search handlers ─────────────────────────────────────────
+function makeSearchHandler(input, suggestionsEl, onPick) {
+  let debounce = null;
+  let focIdx   = -1;
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounce);
+    const q = input.value.trim();
+    if (q.length < 2) { closeSuggestionsEl(suggestionsEl); return; }
+    debounce = setTimeout(async () => {
+      try {
+        const res    = await fetch(`${API}/search?query=${encodeURIComponent(q)}`);
+        const movies = await res.json();
+        if (!movies.length) { closeSuggestionsEl(suggestionsEl); return; }
+        focIdx = -1;
+        suggestionsEl.innerHTML = movies.map(m => `
+          <div class="suggestion-item" data-id="${m.id}" role="option">
+            ${m.poster
+              ? `<img class="suggestion-thumb" src="${m.poster}" alt="" loading="lazy" onerror="this.style.display='none'">`
+              : `<div class="suggestion-thumb-placeholder">🎬</div>`}
+            <div class="suggestion-info">
+              <div class="suggestion-title">${esc(m.title)}</div>
+              <div class="suggestion-meta">${m.year || ''} · ${(m.genres||[]).slice(0,2).join(', ')}</div>
+            </div>
+          </div>
+        `).join('');
+        suggestionsEl.querySelectorAll('.suggestion-item').forEach((el, i) => {
+          el.addEventListener('click', () => {
+            onPick(movies[i]);
+            closeSuggestionsEl(suggestionsEl);
+            input.value = '';
+          });
+        });
+        suggestionsEl.classList.add('open');
+      } catch { closeSuggestionsEl(suggestionsEl); }
+    }, 220);
+  });
+
+  input.addEventListener('keydown', e => {
+    const items = [...suggestionsEl.querySelectorAll('.suggestion-item')];
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focIdx = Math.min(focIdx + 1, items.length - 1);
+      items.forEach((el, i) => el.classList.toggle('focused', i === focIdx));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focIdx = Math.max(focIdx - 1, 0);
+      items.forEach((el, i) => el.classList.toggle('focused', i === focIdx));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (focIdx >= 0 && items[focIdx]) items[focIdx].click();
+    } else if (e.key === 'Escape') {
+      closeSuggestionsEl(suggestionsEl);
+    }
+  });
+}
+
+function closeSuggestionsEl(el) {
+  if (!el) return;
+  el.classList.remove('open');
+  el.innerHTML = '';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.together-col')) {
+    closeSuggestionsEl($('suggestionsA'));
+    closeSuggestionsEl($('suggestionsB'));
+  }
+});
+
+function addMovieTogether(movie, list, chipsContainer) {
+  if (list.find(m => m.id === movie.id)) { showToast(`${movie.title} already added`); return; }
+  list.push({ ...movie, rating: null });
+  renderChipsTogether(list, chipsContainer);
+  updateRecommendBtnState();
+  showToast(`Added ${movie.title}`);
+}
+
+function renderChipsTogether(list, chipsContainer) {
+  chipsContainer.querySelectorAll('.selected-chip').forEach(el => el.remove());
+  list.forEach(m => {
+    const chip = document.createElement('div');
+    chip.className = 'selected-chip';
+    chip.innerHTML = `
+      <span class="chip-title">${esc(m.title)}</span>
+      ${m.year ? `<span class="chip-year">${m.year}</span>` : ''}
+      <button class="chip-remove" title="Remove">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    `;
+    chip.querySelector('.chip-remove').addEventListener('click', () => {
+      const idx = list.findIndex(l => l.id === m.id);
+      if (idx > -1) list.splice(idx, 1);
+      chip.remove();
+      updateRecommendBtnState();
+    });
+    chipsContainer.appendChild(chip);
+  });
+}
+
+const _searchInputA    = $('searchInputA');
+const _suggestionsA    = $('suggestionsA');
+const _selectedMoviesA = $('selectedMoviesA');
+const _searchInputB    = $('searchInputB');
+const _suggestionsB    = $('suggestionsB');
+const _selectedMoviesB = $('selectedMoviesB');
+
+if (_searchInputA) makeSearchHandler(_searchInputA, _suggestionsA, m => addMovieTogether(m, state.likedA, _selectedMoviesA));
+if (_searchInputB) makeSearchHandler(_searchInputB, _suggestionsB, m => addMovieTogether(m, state.likedB, _selectedMoviesB));
+
+// ── Vibe recommendations ───────────────────────────────────────────────────
+async function fetchVibeRecommendations() {
+  const vibe = vibeTextarea?.value.trim();
+  if (!vibe || vibe.length < 5) return;
+
+  startProgress();
+  showLoading(true);
+  searchPanel.style.display      = 'none';
+  heroSection.style.display      = 'none';
+  resultsPanel.style.display     = 'block';
+  discoverySection.style.display = 'none';
+  resultsSubtitle.textContent    = 'Asking Claude…';
+
+  try {
+    // Step 1: Claude interprets the vibe → seed movies
+    const moodRes  = await fetch(`${API}/mood`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vibe }),
+    });
+    const moodData = await moodRes.json();
+    const seeds    = (moodData.seed_movies || []).map(m => ({ id: m.id, title: m.title }));
+
+    // Step 2: use seeds to fetch full recommendations
+    const body = { liked: seeds, page: 1, per_page: 12 };
+    const recRes = await fetch(`${API}/recommend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await recRes.json();
+    state.recs        = data.recommendations || [];
+    state.totalPages  = data.pages || 1;
+    state.currentPage = 1;
+
+    resultsGrid.innerHTML = '';
+    resultsSubtitle.textContent = moodData.vibe ? `Vibe: "${moodData.vibe}"` : 'Based on your vibe';
+    renderMovieCards(state.recs, resultsGrid, true);
+    loadMoreWrapper.style.display = 'none';
+    buildFilterBar();
+    if (seeds.length) fetchExplanations(seeds, state.recs);
+  } catch {
+    resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:60px;text-align:center">Couldn't find films for that vibe. Try again!</p>`;
+  } finally {
+    showLoading(false);
+    finishProgress();
+  }
+}
+
+// ── Watch Together recommendations ─────────────────────────────────────────
+async function fetchTogetherRecommendations() {
+  const combined = [...state.likedA, ...state.likedB];
+  if (!combined.length) return;
+
+  startProgress();
+  showLoading(true);
+  searchPanel.style.display      = 'none';
+  heroSection.style.display      = 'none';
+  resultsPanel.style.display     = 'block';
+  discoverySection.style.display = 'none';
+
+  try {
+    const res = await fetch(`${API}/recommend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ liked: combined, page: 1, per_page: 12 }),
+    });
+    const data = await res.json();
+    state.recs        = data.recommendations || [];
+    state.totalPages  = data.pages || 1;
+    state.currentPage = 1;
+
+    resultsGrid.innerHTML = '';
+    resultsSubtitle.textContent = 'Films you\'ll both love';
+    renderMovieCards(state.recs, resultsGrid, true);
+    loadMoreWrapper.style.display = state.currentPage < state.totalPages ? '' : 'none';
+    buildFilterBar();
+    if (combined.length) fetchExplanations(combined, state.recs);
+  } catch {
+    resultsGrid.innerHTML = `<p style="color:var(--t2);grid-column:1/-1;padding:60px;text-align:center">Could not load recommendations.</p>`;
+  } finally {
+    showLoading(false);
+    finishProgress();
+  }
+}
+
+// ── AI explanations ("Why you'll love it") ────────────────────────────────
+async function fetchExplanations(liked, recs) {
+  if (!liked.length || !recs.length) return;
+  try {
+    const res = await fetch(`${API}/explain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        liked:           liked.map(m => ({ id: m.id || m.tmdb_id, title: m.title })),
+        recommendations: recs.map(m => ({ id: m.id || m.tmdb_id, title: m.title })),
+      }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    (data.explanations || []).forEach((text, i) => {
+      const m = recs[i];
+      if (!m || !text) return;
+      const el = document.getElementById(`reason-${m.id || m.tmdb_id}`);
+      if (el) { el.textContent = text; el.classList.add('visible'); }
+    });
+  } catch { /* silently fail */ }
+}
+
+// ── Trailer hover ──────────────────────────────────────────────────────────
+const _trailerCache = {};
+let   _activeTrailerCard = null;
+
+function wireTrailerHover(card, m) {
+  let hoverTimer = null;
+  const tmdbId   = m.id || m.tmdb_id;
+
+  card.addEventListener('mouseenter', () => {
+    hoverTimer = setTimeout(async () => {
+      if (!(tmdbId in _trailerCache)) {
+        try {
+          const res  = await fetch(`${API}/browse/movie/${tmdbId}/trailer-key`);
+          const data = await res.json();
+          _trailerCache[tmdbId] = data.key || null;
+        } catch { _trailerCache[tmdbId] = null; }
+      }
+      if (_trailerCache[tmdbId]) activateTrailer(card, _trailerCache[tmdbId]);
+    }, 1000);
+  });
+
+  card.addEventListener('mouseleave', () => {
+    clearTimeout(hoverTimer);
+    deactivateTrailer(card);
+  });
+}
+
+function activateTrailer(card, key) {
+  if (_activeTrailerCard && _activeTrailerCard !== card) deactivateTrailer(_activeTrailerCard);
+  _activeTrailerCard = card;
+  let frame = card.querySelector('.card-trailer-frame');
+  if (!frame) {
+    frame = document.createElement('div');
+    frame.className = 'card-trailer-frame';
+    frame.innerHTML = `<iframe
+      src="https://www.youtube.com/embed/${key}?autoplay=1&mute=1&controls=0&loop=1&playlist=${key}&rel=0&showinfo=0&modestbranding=1"
+      allow="autoplay; encrypted-media" frameborder="0"></iframe>`;
+    card.querySelector('.card-poster-wrap').appendChild(frame);
+  }
+  requestAnimationFrame(() => frame.classList.add('active'));
+}
+
+function deactivateTrailer(card) {
+  if (!card) return;
+  const frame = card.querySelector('.card-trailer-frame');
+  if (frame) { frame.classList.remove('active'); setTimeout(() => frame.remove(), 300); }
+  if (_activeTrailerCard === card) _activeTrailerCard = null;
+}
+
+// ── Swipe mode ─────────────────────────────────────────────────────────────
+const swipeBtn = $('swipeBtn');
+if (swipeBtn) {
+  swipeBtn.addEventListener('click', () => {
+    if (typeof window.openSwipeMode === 'function') window.openSwipeMode();
+  });
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────

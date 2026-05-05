@@ -56,22 +56,68 @@
 
       <!-- Search panel -->
       <section class="panel search-panel" id="searchPanel">
-        <h2 class="panel-title">What movies do you love?</h2>
-        <p class="panel-sub">Search and add movies you enjoy. Rate them for better results.</p>
 
-        <div class="search-wrapper">
-          <input id="searchInput" class="search-input" type="text"
-            placeholder="Search any movie…" autocomplete="off" spellcheck="false" />
-          <div class="search-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-          </div>
-          <div id="suggestions" class="suggestions" role="listbox"></div>
+        <!-- Input mode tabs -->
+        <div class="input-mode-tabs" id="inputModeTabs">
+          <button class="input-mode-tab active" data-mode="movie">By Movie</button>
+          <button class="input-mode-tab" data-mode="vibe">By Vibe</button>
+          <button class="input-mode-tab" data-mode="together">Watch Together</button>
         </div>
 
-        <div id="selectedMovies" class="selected-movies">
-          <p class="empty-hint" id="emptyHint">Add at least one movie to get recommendations.</p>
+        <h2 class="panel-title" id="panelTitle">What movies do you love?</h2>
+        <p class="panel-sub" id="panelSub">Search and add movies you enjoy. Rate them for better results.</p>
+
+        <!-- Movie mode -->
+        <div id="movieMode">
+          <div class="search-wrapper">
+            <input id="searchInput" class="search-input" type="text"
+              placeholder="Search any movie…" autocomplete="off" spellcheck="false" />
+            <div class="search-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+            </div>
+            <div id="suggestions" class="suggestions" role="listbox"></div>
+          </div>
+          <div id="selectedMovies" class="selected-movies">
+            <p class="empty-hint" id="emptyHint">Add at least one movie to get recommendations.</p>
+          </div>
+        </div>
+
+        <!-- Vibe mode -->
+        <div id="vibeMode" style="display:none">
+          <textarea id="vibeTextarea" class="vibe-textarea"
+            placeholder="e.g. something melancholy but hopeful… a slow-burn thriller with moral weight… feel-good but not cheesy…"
+            rows="4"></textarea>
+          <p class="vibe-hint">Claude will find the perfect films for your mood</p>
+        </div>
+
+        <!-- Watch Together mode -->
+        <div id="togetherMode" style="display:none">
+          <div class="together-searches">
+            <div class="together-col">
+              <div class="together-col-label">Your picks</div>
+              <div class="search-wrapper">
+                <input id="searchInputA" class="search-input" type="text" placeholder="Search any movie…" autocomplete="off" spellcheck="false" />
+                <div class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+                <div id="suggestionsA" class="suggestions" role="listbox"></div>
+              </div>
+              <div id="selectedMoviesA" class="selected-movies together-chips">
+                <p class="empty-hint">Add your favourite movies.</p>
+              </div>
+            </div>
+            <div class="together-col">
+              <div class="together-col-label">Their picks</div>
+              <div class="search-wrapper">
+                <input id="searchInputB" class="search-input" type="text" placeholder="Search any movie…" autocomplete="off" spellcheck="false" />
+                <div class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+                <div id="suggestionsB" class="suggestions" role="listbox"></div>
+              </div>
+              <div id="selectedMoviesB" class="selected-movies together-chips">
+                <p class="empty-hint">Add their favourite movies.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <button id="recommendBtn" class="recommend-btn" disabled>
@@ -80,6 +126,12 @@
             <path d="M5 12h14M12 5l7 7-7 7"/>
           </svg>
         </button>
+
+        <button id="swipeBtn" class="swipe-entry-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
+          Discover by swiping
+        </button>
+
       </section>
 
       <!-- Results panel -->
@@ -261,5 +313,6 @@
   <script src="browse.js"></script>
   <script src="auth.js"></script>
   <script src="profile.js"></script>
+  <script src="swipe.js"></script>
 </body>
 </html>
