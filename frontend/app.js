@@ -418,11 +418,43 @@ function showSkeletons(container, count = 8) {
   ).join('');
 }
 
+// ── Ranked list (All-Time Best) ────────────────────────────────────────────
+function buildRankedList(movies, container) {
+  container.innerHTML = '';
+  const list = document.createElement('div');
+  list.className = 'ranked-list';
+  movies.slice(0, 10).forEach((m, i) => {
+    const item = document.createElement('div');
+    item.className = 'ranked-item';
+    item.innerHTML = `
+      <div class="ranked-num">${String(i + 1).padStart(2, '0')}</div>
+      ${m.poster
+        ? `<img class="ranked-poster" src="${m.poster}" alt="${esc(m.title)}" loading="lazy">`
+        : `<div class="ranked-poster" style="background:var(--s3)"></div>`}
+      <div class="ranked-info">
+        <div class="ranked-title">${esc(m.title)}</div>
+        <div class="ranked-meta">${m.year || ''}${m.genres?.length ? ' · ' + m.genres.slice(0,2).join(', ') : ''}</div>
+      </div>
+      ${m.vote_average ? `<div class="ranked-rating">&#9733; ${m.vote_average}</div>` : ''}
+    `;
+    item.addEventListener('click', () => openModal(m));
+    list.appendChild(item);
+  });
+  container.appendChild(list);
+}
+
 // ── Discovery ──────────────────────────────────────────────────────────────
 async function loadDiscovery() {
   startProgress();
   showSkeletons(trendingRow);
   showSkeletons(topRatedRow);
+
+  // Editorial section titles
+  const trendingTitle = document.querySelector('.discovery-row:first-child .discovery-title');
+  const topRatedTitle = document.querySelector('.discovery-row:last-child .discovery-title');
+  if (trendingTitle) trendingTitle.innerHTML = `Trending Now <span class="discovery-title-sub">What everyone's watching</span>`;
+  if (topRatedTitle) topRatedTitle.innerHTML = `All&#8209;Time Best <span class="discovery-title-sub">The essential 10</span>`;
+
   try {
     const [topRated, trending] = await Promise.all([
       cachedFetch(`${API}/top-rated?n=16`),
@@ -433,11 +465,10 @@ async function loadDiscovery() {
 
     trendingRow.innerHTML = '';
     topRatedRow.innerHTML = '';
-    renderMovieCards(trending, trendingRow, false);
-    renderMovieCards(topRated, topRatedRow, false);
+    trending.forEach(m => trendingRow.appendChild(buildCard(m, 0)));
+    buildRankedList(topRated, topRatedRow);
     observeSections();
   } catch {
-    // Non-critical — skeletons will just stay until refresh
     trendingRow.innerHTML = '';
     topRatedRow.innerHTML = '';
   } finally {
@@ -467,13 +498,56 @@ function extractPosterColor(img, card) {
 // ── Card rendering ─────────────────────────────────────────────────────────
 function renderMovieCards(movies, container, animate) {
   movies.forEach((m, i) => {
-    // First card in the results grid gets the wide editorial treatment
     if (i === 0 && container === resultsGrid && animate && m.backdrop) {
+      // Position 1: wide featured editorial card
       container.appendChild(buildFeaturedCard(m));
+    } else if ((i === 1 || i === 2) && container === resultsGrid && animate) {
+      // Positions 2–3: landscape horizontal cards (break the grid rhythm)
+      container.appendChild(buildLandscapeCard(m, animate ? i * 40 : 0));
     } else {
       container.appendChild(buildCard(m, animate ? i * 35 : 0));
     }
   });
+}
+
+function buildLandscapeCard(m, delayMs = 0) {
+  const card = document.createElement('div');
+  card.className = 'movie-card movie-card-landscape';
+  card.style.animationDelay = `${delayMs}ms`;
+
+  const cardId = m.id || m.tmdb_id;
+  const genres = (m.genres || []).slice(0, 2);
+
+  card.innerHTML = `
+    <div class="landscape-poster-wrap">
+      ${m.poster
+        ? `<img src="${m.poster}" alt="${esc(m.title)}" loading="lazy" crossorigin="anonymous" onerror="this.parentElement.innerHTML='<div class=\\'card-poster-placeholder\\'>🎬</div>'">`
+        : `<div class="card-poster-placeholder">🎬</div>`}
+    </div>
+    <div class="landscape-info">
+      ${genres.length ? `<div class="landscape-eyebrow">${genres.map(g=>`<span class="landscape-genre">${esc(g)}</span>`).join('<span style="color:var(--b2);margin:0 4px">·</span>')}</div>` : ''}
+      <div class="landscape-title">${esc(m.title)}</div>
+      <div class="landscape-meta">
+        ${m.year ? `<span>${m.year}</span>` : ''}
+        ${m.vote_average ? `<span class="landscape-rating">★ ${m.vote_average}</span>` : ''}
+        ${m.runtime ? `<span>${m.runtime} min</span>` : ''}
+      </div>
+      ${m.overview ? `<p class="landscape-overview">${esc(m.overview.slice(0, 160))}…</p>` : ''}
+      <button class="landscape-add-btn">+ Add to List</button>
+      <div class="card-reason" id="reason-${cardId}"></div>
+    </div>
+  `;
+
+  const img = card.querySelector('img');
+  if (img) {
+    const onLoad = () => { img.classList.add('img-loaded'); extractPosterColor(img, card); };
+    if (img.complete && img.naturalWidth) onLoad();
+    else img.addEventListener('load', onLoad, { once: true });
+  }
+
+  card.querySelector('.landscape-add-btn').addEventListener('click', e => { e.stopPropagation(); addMovie(m); });
+  card.addEventListener('click', () => openModal(m));
+  return card;
 }
 
 function buildFeaturedCard(m) {
