@@ -156,6 +156,70 @@ const browse = (() => {
     });
   }
 
+  // ── Streaming provider filter strip ───────────────────────────────────
+  const PROVIDERS = [
+    { id: 8,   name: 'Netflix',       logo: 'https://image.tmdb.org/t/p/original/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
+    { id: 337, name: 'Disney+',       logo: 'https://image.tmdb.org/t/p/original/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg' },
+    { id: 384, name: 'HBO Max',       logo: 'https://image.tmdb.org/t/p/original/Ajqyt5aNxNx6dRF2wJWoQaGqhHc.jpg' },
+    { id: 9,   name: 'Prime Video',   logo: 'https://image.tmdb.org/t/p/original/emthp39XA2YScoYL1p0sdbLH2IC.jpg' },
+    { id: 15,  name: 'Hulu',          logo: 'https://image.tmdb.org/t/p/original/zxrVdFjIjLqkfnwyghnfywTn3Lh.jpg' },
+    { id: 531, name: 'Paramount+',    logo: 'https://image.tmdb.org/t/p/original/xbhHHa1YgtpwhC8lb1NQ3ACVcLd.jpg' },
+    { id: 2,   name: 'Apple TV+',     logo: 'https://image.tmdb.org/t/p/original/peURlLlr8jggOwK53fJ5wdQl05y.jpg' },
+  ];
+
+  let activeProviderId = null;
+
+  function buildProviderStrip() {
+    const wrap = document.createElement('div');
+    wrap.className = 'provider-strip-wrap';
+    wrap.innerHTML = `
+      <div class="provider-strip">
+        ${PROVIDERS.map(p => `
+          <button class="provider-pill" data-id="${p.id}" title="${p.name}">
+            <img src="${p.logo}" alt="${p.name}" class="provider-pill-logo" onerror="this.parentElement.style.display='none'">
+          </button>`).join('')}
+      </div>`;
+
+    wrap.querySelectorAll('.provider-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.dataset.id);
+        if (activeProviderId === id) {
+          activeProviderId = null;
+          wrap.querySelectorAll('.provider-pill').forEach(b => b.classList.remove('active'));
+          showHome();
+        } else {
+          activeProviderId = id;
+          wrap.querySelectorAll('.provider-pill').forEach(b => b.classList.toggle('active', parseInt(b.dataset.id) === id));
+          runProviderFilter(id, PROVIDERS.find(p => p.id === id)?.name || '');
+        }
+      });
+    });
+
+    // Insert after genre pills wrap
+    const genreWrap = document.querySelector('.genre-pills-wrap');
+    if (genreWrap) genreWrap.parentNode.insertBefore(wrap, genreWrap.nextSibling);
+  }
+
+  async function runProviderFilter(providerId, name, page = 1) {
+    showGridView(`Streaming on ${name}`);
+    browseGridCards.innerHTML = '';
+    browseLoading.style.display = '';
+
+    try {
+      const res  = await fetch(`${API}/browse/discover?with_watch_providers=${providerId}&watch_region=US&page=${page}`);
+      const data = await res.json();
+      const movies = data.results || [];
+      browseLoading.style.display = 'none';
+      if (page === 1) browseGridCards.innerHTML = '';
+      movies.forEach(m => browseGridCards.appendChild(buildBrowseCard(m)));
+      st.gridPage        = page;
+      st.gridTotalPages  = data.total_pages || 1;
+      browseLoadMoreWrap.style.display = page < st.gridTotalPages ? '' : 'none';
+    } catch {
+      browseLoading.style.display = 'none';
+    }
+  }
+
   // ── Genres ─────────────────────────────────────────────────────────────
   async function loadGenres() {
     try {
@@ -580,6 +644,7 @@ const browse = (() => {
 
   async function init() {
     buildAdvFilterPanel();
+    buildProviderStrip();
     if (typeof startProgress === 'function') startProgress();
     await Promise.all([loadGenres(), loadHomeRows()]);
     if (typeof finishProgress === 'function') finishProgress();

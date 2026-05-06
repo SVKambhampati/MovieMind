@@ -307,6 +307,69 @@
     </div>
   </div>
 
+  <!-- ── Footer ── -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="footer-logo">🎬 Movie<span>Mind</span></span>
+        <p class="footer-tagline">Your personal film oracle</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <div class="footer-col-title">Discover</div>
+          <button class="footer-link" data-view="recommend">For You</button>
+          <button class="footer-link" data-view="browse">Browse</button>
+          <button class="footer-link" id="footerSwipeBtn">Swipe Mode</button>
+          <button class="footer-link" id="footerQuickPickBtn">Tonight's Pick</button>
+        </div>
+        <div class="footer-col">
+          <div class="footer-col-title">Shortcuts</div>
+          <button class="footer-link" id="footerPaletteBtn">⌘K Command palette</button>
+          <button class="footer-link" id="footerVibeBtn">Vibe search</button>
+        </div>
+      </div>
+      <div class="footer-right">
+        <div class="footer-tmdb">
+          <svg class="footer-tmdb-icon" viewBox="0 0 24 24" fill="none">
+            <rect width="24" height="24" rx="4" fill="var(--s2)"/>
+            <text x="4" y="17" font-size="11" font-weight="900" fill="var(--accent)" font-family="sans-serif">TMDb</text>
+          </svg>
+          <span>Powered by TMDB</span>
+        </div>
+        <div class="footer-copy">© 2026 MovieMind</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── Keyboard command palette ── -->
+  <div id="cmdPalette" class="cmd-palette" style="display:none" role="dialog" aria-modal="true">
+    <div class="cmd-backdrop" id="cmdBackdrop"></div>
+    <div class="cmd-card">
+      <div class="cmd-input-wrap">
+        <svg class="cmd-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input id="cmdInput" class="cmd-input" type="text" placeholder="Search movies or actions…" autocomplete="off" spellcheck="false"/>
+        <kbd class="cmd-esc">esc</kbd>
+      </div>
+      <div id="cmdResults" class="cmd-results"></div>
+      <div class="cmd-footer-bar">
+        <span class="cmd-hint"><kbd>↑↓</kbd> navigate</span>
+        <span class="cmd-hint"><kbd>↵</kbd> select</span>
+        <span class="cmd-hint"><kbd>esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── What to watch tonight ── -->
+  <div id="quickPickModal" class="modal" style="display:none" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" id="quickPickBackdrop"></div>
+    <div class="modal-card quickpick-card">
+      <button class="modal-close" id="quickPickClose">✕</button>
+      <div id="quickPickBody" class="quickpick-body"></div>
+    </div>
+  </div>
+
   <!-- Page-level progress bar -->
   <div id="pageProgress" class="page-progress"></div>
 
@@ -316,5 +379,7 @@
   <script src="auth.js"></script>
   <script src="profile.js"></script>
   <script src="swipe.js"></script>
+  <script src="palette.js"></script>
+  <script src="quickpick.js"></script>
 </body>
 </html>

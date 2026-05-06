@@ -683,6 +683,100 @@ def profile_dna():
 
 
 # ---------------------------------------------------------------------------
+# Person / filmography
+# ---------------------------------------------------------------------------
+
+@app.route('/api/browse/person/<int:person_id>')
+def browse_person(person_id: int):
+    """Return person details + top movie credits from TMDB."""
+    try:
+        details = tmdb._get(f'/person/{person_id}', {}, ttl=86400)
+        credits = tmdb._get(f'/person/{person_id}/movie_credits', {}, ttl=86400)
+        cast    = credits.get('cast', [])
+        crew    = credits.get('crew', [])
+
+        # Sort by popularity desc, dedupe by movie id
+        seen = set()
+        movies = []
+        for m in sorted(cast + crew, key=lambda x: x.get('popularity', 0), reverse=True):
+            mid = m.get('id')
+            if mid and mid not in seen:
+                seen.add(mid)
+                movies.append({
+                    'id':           mid,
+                    'tmdb_id':      mid,
+                    'title':        m.get('title', ''),
+                    'year':         (m.get('release_date') or '')[:4] or None,
+                    'poster':       f"https://image.tmdb.org/t/p/w342{m['poster_path']}" if m.get('poster_path') else None,
+                    'vote_average': round(m.get('vote_average', 0), 1) or None,
+                    'genres':       [],
+                    'character':    m.get('character') or m.get('job'),
+                })
+
+        photo = f"https://image.tmdb.org/t/p/w185{details['profile_path']}" if details.get('profile_path') else None
+        return jsonify({
+            'id':         person_id,
+            'name':       details.get('name', ''),
+            'photo':      photo,
+            'biography':  (details.get('biography') or '')[:400],
+            'known_for':  details.get('known_for_department', ''),
+            'birthday':   details.get('birthday'),
+            'movies':     movies[:30],
+        })
+    except Exception as e:
+        logger.error(f'person {person_id}: {e}')
+        return jsonify({'error': 'Could not load person'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Quick-pick ("What to watch tonight")
+# ---------------------------------------------------------------------------
+
+@app.route('/api/quickpick', methods=['POST'])
+def quickpick():
+    """Return one perfect movie given genre + vibe + max_runtime."""
+    import anthropic as _anthropic
+    import json as _json
+
+    body       = request.get_json(force=True, silent=True) or {}
+    genre      = body.get('genre', '')
+    vibe       = body.get('vibe', '')
+    max_runtime= body.get('max_runtime', 999)
+
+    prompt = (
+        f'Film expert task. Someone wants one single perfect movie to watch tonight.\n'
+        f'Constraints:\n'
+        f'- Genre: {genre}\n'
+        f'- Vibe: {vibe}\n'
+        f'- Max runtime: {max_runtime} minutes\n\n'
+        f'Return JSON only:\n'
+        f'{{"title": "Exact Movie Title", "year": 2001, "reason": "One compelling sentence why this is perfect right now."}}\n\n'
+        f'Pick a real, well-known film. Prioritise quality over recency.'
+    )
+
+    try:
+        client = _anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        msg = client.messages.create(
+            model='claude-3-5-haiku-20241022',
+            max_tokens=150,
+            messages=[{'role': 'user', 'content': prompt}],
+        )
+        pick = _json.loads(msg.content[0].text)
+    except Exception as e:
+        logger.error(f'quickpick Claude error: {e}')
+        return jsonify({'error': 'Could not pick a film'}), 500
+
+    # Search TMDB for the title to get poster/id
+    try:
+        results, _ = tmdb.search(pick.get('title', ''), page=1)
+        movie = results[0] if results else {}
+        movie['reason'] = pick.get('reason', '')
+        return jsonify(movie)
+    except Exception:
+        return jsonify({'error': 'Film not found'}), 404
+
+
+# ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
 

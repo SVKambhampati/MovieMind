@@ -445,12 +445,64 @@ async function loadDiscovery() {
   }
 }
 
+// ── Colour extraction ──────────────────────────────────────────────────────
+function extractPosterColor(img, card) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width  = 6;
+    canvas.height = 9;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 6, 9);
+    const d = ctx.getImageData(0, 0, 6, 9).data;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const bright = (d[i] + d[i+1] + d[i+2]) / 3;
+      if (bright > 28 && bright < 228) { r += d[i]; g += d[i+1]; b += d[i+2]; n++; }
+    }
+    if (!n) return;
+    card.style.setProperty('--card-glow', `${Math.round(r/n)},${Math.round(g/n)},${Math.round(b/n)}`);
+  } catch { /* CORS — silently skip */ }
+}
+
 // ── Card rendering ─────────────────────────────────────────────────────────
 function renderMovieCards(movies, container, animate) {
   movies.forEach((m, i) => {
-    const card = buildCard(m, animate ? i * 35 : 0);
-    container.appendChild(card);
+    // First card in the results grid gets the wide editorial treatment
+    if (i === 0 && container === resultsGrid && animate && m.backdrop) {
+      container.appendChild(buildFeaturedCard(m));
+    } else {
+      container.appendChild(buildCard(m, animate ? i * 35 : 0));
+    }
   });
+}
+
+function buildFeaturedCard(m) {
+  const card = document.createElement('div');
+  card.className = 'movie-card movie-card-featured';
+  const genres = (m.genres || []).slice(0, 3);
+  card.innerHTML = `
+    <div class="featured-backdrop" style="background-image:url(${m.backdrop.replace('w780','w1280')})"></div>
+    <div class="featured-gradient"></div>
+    <div class="featured-content">
+      <div class="featured-eyebrow">✦ Top Pick</div>
+      ${genres.length ? `<div class="featured-genres">${genres.map(g=>`<span class="featured-genre-tag">${esc(g)}</span>`).join('')}</div>` : ''}
+      <h2 class="featured-title">${esc(m.title)}</h2>
+      <div class="featured-meta">
+        ${m.year ? `<span>${m.year}</span><span class="sep">·</span>` : ''}
+        ${m.vote_average ? `<span class="featured-rating">★ ${m.vote_average}</span>` : ''}
+        ${m.runtime ? `<span class="sep">·</span><span>${m.runtime} min</span>` : ''}
+      </div>
+      ${m.overview ? `<p class="featured-overview">${esc(m.overview.slice(0,200))}…</p>` : ''}
+      <div class="featured-actions">
+        <button class="featured-btn-primary" id="featuredAddBtn">+ Add to List</button>
+        <button class="featured-btn-secondary" id="featuredInfoBtn">More Info</button>
+      </div>
+    </div>
+  `;
+  card.querySelector('#featuredAddBtn').addEventListener('click', e => { e.stopPropagation(); addMovie(m); });
+  card.querySelector('#featuredInfoBtn').addEventListener('click', e => { e.stopPropagation(); openModal(m); });
+  card.addEventListener('click', () => openModal(m));
+  return card;
 }
 
 function buildCard(m, delayMs = 0) {
@@ -478,14 +530,13 @@ function buildCard(m, delayMs = 0) {
     </div>
   `;
 
-  // Fade in poster once loaded
+  // Fade in poster + extract dominant colour for glow
   const img = card.querySelector('.card-poster');
   if (img) {
-    if (img.complete && img.naturalWidth) {
-      img.classList.add('img-loaded');
-    } else {
-      img.addEventListener('load', () => img.classList.add('img-loaded'), { once: true });
-    }
+    img.crossOrigin = 'anonymous';
+    const onLoad = () => { img.classList.add('img-loaded'); extractPosterColor(img, card); };
+    if (img.complete && img.naturalWidth) onLoad();
+    else img.addEventListener('load', onLoad, { once: true });
   }
 
   card.querySelector('.card-hover-add').addEventListener('click', e => {
@@ -770,7 +821,7 @@ function buildCrewCastSection(d) {
         <div class="modal-section-label">Cast</div>
         <div class="cast-scroll">
           ${castDetail.map(c => `
-            <div class="cast-member">
+            <div class="cast-member${c.id ? ' cast-clickable' : ''}" ${c.id ? `data-person-id="${c.id}"` : ''}>
               ${c.photo
                 ? `<img class="cast-photo" src="${c.photo}" alt="${esc(c.name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'cast-photo-placeholder\\'>👤</div>'">`
                 : `<div class="cast-photo-placeholder">👤</div>`}
@@ -856,6 +907,14 @@ function renderModal(detail, alreadyAdded) {
       img.addEventListener('click', () => openLightbox(detail.stills, parseInt(img.dataset.idx)));
     });
   }
+
+  // Wire cast member clicks → filmography panel
+  modalBody.querySelectorAll('.cast-clickable').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      openFilmographyPanel(parseInt(el.dataset.personId), el.querySelector('.cast-name')?.textContent || '');
+    });
+  });
 }
 
 function renderModalSkeleton() {
@@ -1288,6 +1347,89 @@ function deactivateTrailer(card) {
   if (frame) { frame.classList.remove('active'); setTimeout(() => frame.remove(), 300); }
   if (_activeTrailerCard === card) _activeTrailerCard = null;
 }
+
+// ── Filmography panel ──────────────────────────────────────────────────────
+async function openFilmographyPanel(personId, name) {
+  let panel = document.getElementById('filmographyPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'filmographyPanel';
+    panel.className = 'filmography-panel';
+    panel.innerHTML = `
+      <div class="filmography-backdrop" id="filmographyBackdrop"></div>
+      <div class="filmography-drawer" id="filmographyDrawer">
+        <div class="filmography-header">
+          <div id="filmographyMeta" class="filmography-meta"></div>
+          <button class="filmography-close" id="filmographyClose">✕</button>
+        </div>
+        <div id="filmographyGrid" class="filmography-grid"></div>
+      </div>`;
+    document.body.appendChild(panel);
+    panel.querySelector('#filmographyBackdrop').addEventListener('click', closeFilmographyPanel);
+    panel.querySelector('#filmographyClose').addEventListener('click', closeFilmographyPanel);
+  }
+
+  const grid = panel.querySelector('#filmographyGrid');
+  const meta = panel.querySelector('#filmographyMeta');
+  meta.innerHTML = `<div class="filmography-name">${esc(name)}</div>`;
+  grid.innerHTML = `<div class="filmography-loading"><div class="spinner"></div></div>`;
+  panel.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const res  = await fetch(`${API}/browse/person/${personId}`);
+    const data = await res.json();
+    meta.innerHTML = `
+      <div class="filmography-person-row">
+        ${data.photo ? `<img class="filmography-photo" src="${data.photo}" alt="${esc(data.name)}">` : ''}
+        <div>
+          <div class="filmography-name">${esc(data.name)}</div>
+          ${data.known_for ? `<div class="filmography-known">${esc(data.known_for)}</div>` : ''}
+          ${data.biography ? `<p class="filmography-bio">${esc(data.biography)}…</p>` : ''}
+        </div>
+      </div>`;
+    grid.innerHTML = '';
+    if (data.movies?.length) {
+      data.movies.forEach(m => {
+        const card = buildCard(m, 0);
+        grid.appendChild(card);
+      });
+    } else {
+      grid.innerHTML = emptyStateSVG('No films found', 'This person\'s filmography isn\'t in our database yet.');
+    }
+  } catch {
+    grid.innerHTML = `<p style="color:var(--t2);padding:40px;text-align:center">Could not load filmography.</p>`;
+  }
+}
+
+function closeFilmographyPanel() {
+  const panel = document.getElementById('filmographyPanel');
+  if (panel) { panel.classList.remove('open'); document.body.style.overflow = ''; }
+}
+
+// ── Illustrated empty states ───────────────────────────────────────────────
+function emptyStateSVG(title, sub) {
+  return `
+    <div class="empty-state">
+      <svg class="empty-state-art" viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="20" width="60" height="44" rx="4" stroke="var(--b2)" stroke-width="1.5"/>
+        <rect x="14" y="24" width="52" height="36" rx="2" fill="var(--s2)"/>
+        <circle cx="40" cy="42" r="9" stroke="var(--accent)" stroke-width="1.5" opacity="0.5"/>
+        <path d="M37 39l6 3-6 3V39z" fill="var(--accent)" opacity="0.5"/>
+        <rect x="10" y="20" width="60" height="7" rx="4" fill="var(--s3)"/>
+        <rect x="14" y="23" width="4" height="2" rx="1" fill="var(--accent)" opacity="0.7"/>
+        <rect x="20" y="23" width="4" height="2" rx="1" fill="var(--b2)"/>
+        <rect x="26" y="23" width="4" height="2" rx="1" fill="var(--b2)"/>
+        <path d="M78 55 Q90 30 105 45" stroke="var(--b2)" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        <circle cx="105" cy="45" r="3" fill="var(--accent)" opacity="0.4"/>
+      </svg>
+      <div class="empty-state-title">${esc(title)}</div>
+      <div class="empty-state-sub">${esc(sub)}</div>
+    </div>`;
+}
+
+// Patch the results grid empty message to use illustrated state
+const _origFetchRecs = fetchRecommendations;
 
 // ── Swipe mode ─────────────────────────────────────────────────────────────
 const swipeBtn = $('swipeBtn');
