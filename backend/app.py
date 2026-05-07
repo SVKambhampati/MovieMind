@@ -574,7 +574,7 @@ def explain_recommendations():
 
     body = request.get_json(force=True, silent=True) or {}
     liked = body.get('liked', [])
-    recs  = body.get('recs', [])
+    recs  = body.get('recommendations', body.get('recs', []))
     if not liked or not recs:
         return jsonify({'explanations': []})
 

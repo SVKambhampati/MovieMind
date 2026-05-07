@@ -1502,8 +1502,9 @@ function emptyStateSVG(title, sub) {
     </div>`;
 }
 
-// Patch the results grid empty message to use illustrated state
-const _origFetchRecs = fetchRecommendations;
+// ── Global exports (used by swipe.js, quickpick.js, palette.js) ────────────
+window.openModal = openModal;
+window.addMovie  = addMovie;
 
 // ── Swipe mode ─────────────────────────────────────────────────────────────
 const swipeBtn = $('swipeBtn');
